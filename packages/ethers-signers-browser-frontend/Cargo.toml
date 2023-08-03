@@ -1,0 +1,42 @@
+[package]
+name = "ethers-signers-browser-frontend"
+description = "A frontend for `ethers-signers-browser` to give access to browser wallets"
+documentation = "https://docs.rs/ethers-signers-browser-frontend"
+# This is only used internally by `ethers-signers-browser`
+publish = false
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+exclude.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.playground]
+all-features = true
+
+[dependencies]
+ethers-core.workspace = true
+ethereum-provider = { workspace = true, features = ["yew"] }
+futures-util = "0.3.28"
+futures-channel = "0.3.28"
+getrandom = { version = "0.2", features = ["js"] }
+gloo-utils = "0.1.2"
+rand = "0.8"
+reqwasm = "0.4.1"
+serde.workspace = true
+serde-wasm-bindgen.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+web-sys.workspace = true
+yew = { workspace = true, features = ["csr"] }
+yew-agent = "0.2.0"

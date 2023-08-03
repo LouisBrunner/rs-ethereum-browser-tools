@@ -1,0 +1,55 @@
+[package]
+name = "ethers-signers-browser"
+readme = "README.md"
+description = "A `ethers-signers`-compatible Signer to interact with browser-based wallets"
+documentation = "https://docs.rs/ethers-signers-browser"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+exclude.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.playground]
+all-features = true
+
+[dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+actix = { version = "0.13.0", default-features = false, features = ["macros"] }
+actix-web = { version = "4.3", default-features = false, features = ["macros"] }
+actix-web-actors = { version = "4.1", default-features = false }
+async-trait = "0.1.68"
+bytestring = { version = "1.3.0", default-features = false }
+ethers-core.workspace = true
+ethers-signers.workspace = true
+ethers-signers-browser-frontend.workspace = true
+mime_guess = { version = "2.0.4", default-features = false }
+rust-embed = { version = "6.8.1", default-features = false, features = [
+  "interpolate-folder-path",
+] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing = "0.1.37"
+webbrowser = { version = "0.8.10", default-features = false, features = [
+  "hardened",
+  "disable-wsl",
+] }
+
+[dev-dependencies]
+tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
+
+[build-dependencies]
+# TODO: currently using an unreleased version of trunk
+# trunk = { version = "0.17.2", optional = false }
+trunk = { git = "https://github.com/LouisBrunner/trunk" }
+tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }

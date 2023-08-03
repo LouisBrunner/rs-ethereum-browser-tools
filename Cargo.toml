@@ -1,0 +1,51 @@
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.65"
+license = "MPL-2.0"
+repository = "https://github.com/LouisBrunner/rs-ethereum-browser-tools"
+homepage = "https://github.com/LouisBrunner/rs-ethereum-browser-tools"
+categories = ["cryptography::cryptocurrencies", "wasm"]
+keywords = ["ethereum", "web3", "provider", "browser", "signer"]
+exclude = [".github/"]
+
+# https://docs.rs/about/metadata
+[workspace.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+# https://github.com/integer32llc/rust-playground/blob/c6165a36923db5d99313e6056b5b610a2ede5bb0/top-crates/src/lib.rs#L175-L184
+[workspace.metadata.playground]
+all-features = true
+
+[workspace]
+members = [
+  "packages/ethers-signers-browser",
+  "packages/ethers-signers-browser-frontend",
+  "packages/ethereum-provider",
+]
+
+default-members = [
+  "packages/ethers-signers-browser",
+  "packages/ethereum-provider",
+]
+
+# https://doc.rust-lang.org/edition-guide/rust-2021/default-cargo-resolver.html
+resolver = "2"
+
+[workspace.dependencies]
+ethereum-provider = { path = "packages/ethereum-provider", default-features = false }
+ethers-signers-browser = { path = "packages/ethers-signers-browser", default-features = false }
+ethers-signers-browser-frontend = { path = "packages/ethers-signers-browser-frontend", default-features = false }
+
+ethers-core = "2.0.8"
+ethers-signers = "2.0.8"
+js-sys = "0.3.44"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.4"
+serde_json = "1.0"
+thiserror = "1.0"
+wasm-bindgen = { version = "0.2.67", features = ["serde-serialize"] }
+wasm-bindgen-futures = "0.4.25"
+web-sys = "0.3.44"
+yew = { version = "0.20.0", default-features = false }

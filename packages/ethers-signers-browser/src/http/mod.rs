@@ -1,6 +1,6 @@
 use actix::{Actor, Addr, MailboxError};
 use actix_web::{dev::ServerHandle, rt, web, App, HttpServer};
-use ethers_core::{
+use ethers::core::{
     abi::Address,
     types::{
         transaction::{eip2718::TypedTransaction, eip712::TypedData},
@@ -18,7 +18,8 @@ mod comm;
 mod routes;
 pub mod session;
 
-static TIMEOUT: Duration = Duration::from_secs(60);
+// FIXME: tweak those values
+static TIMEOUT: Duration = Duration::MAX;
 static CONNECT_TIMEOUT: Duration = Duration::MAX;
 
 struct ServerData {
@@ -188,7 +189,7 @@ impl Server {
         while start.elapsed() < timeout {
             let res = receiver.try_recv();
             if let Some(res) = pred(&res) {
-                return Ok(res)
+                return Ok(res);
             }
             match res {
                 Ok(comm::AsyncResponse::ClientConnected) => (),

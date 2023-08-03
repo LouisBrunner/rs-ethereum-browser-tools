@@ -1,8 +1,12 @@
-use self::console::console_log;
+use std::str::FromStr;
+
+use self::console::{console_error, console_log};
 use ethereum_provider::{
     provider::{Provider, ProviderError},
     yew::{use_provider, ProviderStatus},
 };
+use ethers::types::H160;
+use js_sys::Array;
 use serde::Serialize;
 use yew::prelude::*;
 
@@ -34,10 +38,29 @@ async fn call_provider(
                     .await?;
             }
             let v = provider.clone().request::<()>("eth_requestAccounts".to_string(), None).await?;
-            console_log!("eth_requestAccounts: {:?}", v);
+            let accounts = Array::from(&v)
+                .to_vec()
+                .into_iter()
+                .filter_map(|v| {
+                    let s = match v.as_string() {
+                        Some(s) => s,
+                        None => {
+                            console_error!("error parsing address: {:?}", v);
+                            return None;
+                        }
+                    };
+                    match H160::from_str(s.as_str()) {
+                        Ok(address) => Some(address),
+                        Err(err) => {
+                            console_error!("error parsing address: {:?}", err);
+                            None
+                        }
+                    }
+                })
+                .collect();
             Ok(ws::messages::Response {
                 id: request.id,
-                content: ws::messages::ResponseContent::Init { addresses: vec![] },
+                content: ws::messages::ResponseContent::Init { addresses: accounts },
             })
         }
         ws::messages::RequestContent::SignMessage { message } => {
@@ -95,7 +118,7 @@ fn handle_request(
         };
         match res {
             Ok(_) => (),
-            Err(e) => console_log!("error sending response: {:?}", e),
+            Err(e) => console_error!("error sending response: {:?}", e),
         }
     });
 }
@@ -103,21 +126,23 @@ fn handle_request(
 #[function_component]
 fn App() -> Html {
     let status = use_provider();
-    console_log!("status: {:?}", status);
-
     let callback = {
         let status = status.clone();
         use_callback(handle_request, status)
     };
-
     let ws = helpers::ws::use_ws(Some(callback));
 
     html! {
-        <div>
-            <pre style="text-align: center; font-size: 2rem;">{ "ethers-rs" }</pre>
-            <pre>{ format!("Server connection: {}", helpers::ws::get_status(ws) )}</pre>
-            {helpers::wallet::get_status(status)}
-        </div>
+      <>
+        <header style="display: flex; align-items: center; flex-direction: column;">
+          <img width=128 height=128 src="static/logo.png" alt="App Logo"/>
+          <h1 style="margin-top: 0;"><pre>{ "ethers-signers-browser" }</pre></h1>
+        </header>
+        <section>
+          <pre>{ format!("Server connection: {}", helpers::ws::get_status(ws) )}</pre>
+          {helpers::wallet::get_status(status)}
+        </section>
+      </>
     }
 }
 

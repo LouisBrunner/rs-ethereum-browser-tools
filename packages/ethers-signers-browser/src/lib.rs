@@ -1,14 +1,14 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-use ethers_core::{
+use ethers::core::{
     types::{
         transaction::{eip2718::TypedTransaction, eip712::Eip712},
         Address, Signature as EthSig, H256,
     },
     utils::hash_message,
 };
-use ethers_signers::Signer;
+pub use ethers::signers::Signer;
 use std::str::FromStr;
 use tracing::{instrument, trace};
 
@@ -18,13 +18,17 @@ mod http;
 ///
 /// The Browser Signer passes signing requests to the browser through a WS API.
 ///
-/// ```compile_fail
-/// user ethers_signers::Signer;
+/// ```
+/// use ethers::{core::types::H256, signers::Signer};
+/// use ethers_signers_browser::BrowserSigner;
 ///
+/// # async fn foo() -> Result<(), Box<dyn std::error::Error>> {
 /// let chain_id = 1;
 ///
 /// let signer = BrowserSigner::new(chain_id).await?;
 /// let sig = signer.sign_message(H256::zero()).await?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct BrowserSigner {
     chain_id: u64,
@@ -59,7 +63,7 @@ pub enum BrowserSignerError {
     #[error("eip712 error: {0:?}")]
     Eip712Error(String),
     #[error("signature error: {0}")]
-    SignatureError(#[from] ethers_core::types::SignatureError),
+    SignatureError(#[from] ethers::core::types::SignatureError),
 }
 
 impl From<String> for BrowserSignerError {
@@ -84,6 +88,9 @@ impl BrowserSigner {
         let server = http::Server::new().await?;
         prompt_user(&server)?;
         let addresses = server.get_user_addresses(chain_id).await?;
+        if addresses.is_empty() {
+            return Err(BrowserSignerError::Other("no addresses found in browser".to_owned()));
+        }
         Ok(Self { chain_id, server, addresses })
     }
 }
@@ -154,6 +161,8 @@ mod tests {
     async fn it_signs_messages() {
         let chain_id = 1;
         let signer = BrowserSigner::new(chain_id).await.unwrap();
+
+        println!("address: {}", signer.address());
 
         let message = vec![0, 1, 2, 3];
 

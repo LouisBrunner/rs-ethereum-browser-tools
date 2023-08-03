@@ -3,9 +3,7 @@ use futures_channel::mpsc::{channel, SendError, Sender};
 use futures_util::{SinkExt, StreamExt};
 use gloo_utils::errors::JsError;
 use rand::Rng;
-use reqwasm::websocket::{
-    events::CloseEvent, futures::WebSocket, Message, WebSocketError as WSError,
-};
+use reqwasm::websocket::{futures::WebSocket, Message, WebSocketError as WSError};
 use std::sync::{Arc, Mutex};
 use wasm_bindgen_futures::spawn_local;
 
@@ -25,7 +23,18 @@ pub enum WebsocketError {
     Other(String),
 }
 
-#[derive(Clone)]
+// FIXME: real one is not PartialEq
+#[derive(Clone, Debug, PartialEq)]
+pub struct CloseEvent {
+    /// Close code
+    pub code: u16,
+    /// Close reason
+    pub reason: String,
+    /// If the websockets was closed cleanly
+    pub was_clean: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(super) enum WebsocketStatus {
     Pending,
     Connected,
@@ -100,6 +109,7 @@ impl WebsocketService {
         {
             spawn_local(async move {
                 while let Some(msg) = read.next().await {
+                    set_status(WebsocketStatus::Connected);
                     match msg {
                         Ok(Message::Text(data)) => {
                             match serde_json::from_str::<messages::Request>(&data) {
@@ -116,7 +126,11 @@ impl WebsocketService {
                         }
                         Err(e) => match e {
                             WSError::ConnectionClose(e) => {
-                                set_status(WebsocketStatus::Disconnected(e));
+                                set_status(WebsocketStatus::Disconnected(CloseEvent {
+                                    code: e.code,
+                                    reason: e.reason,
+                                    was_clean: e.was_clean,
+                                }));
                             }
                             _ => {
                                 set_status(WebsocketStatus::Error(e.to_string()));

@@ -207,11 +207,22 @@ impl Provider {
         &self,
         callback: Box<dyn Fn(String)>,
     ) -> Result<Callback, ProviderError> {
-        let closure = Closure::new(move |data| match serde_wasm_bindgen::from_value(data) {
-            Ok(event) => callback(event),
-            // FIXME: should forward the error to the user?
-            Err(err) => console_error!("callback error: {:?}", err),
-        });
+        let closure =
+            Closure::new(move |data: JsValue| match serde_wasm_bindgen::from_value(data.clone()) {
+                Ok(event) => callback(event),
+                // FIXME: should forward the error to the user?
+                Err(err) =>
+                // sometimes we get the wrong type, a float for some reason, so handle that
+                {
+                    match serde_wasm_bindgen::from_value::<f32>(data) {
+                        Ok(event) => callback(event.to_string()),
+                        Err(_) => {
+                            // no luck, show the initial error
+                            console_error!("callback error: {:?}", err);
+                        }
+                    }
+                }
+            });
         self.on(CHAIN_CHANGED.to_owned(), &closure)?;
         Ok(closure)
     }

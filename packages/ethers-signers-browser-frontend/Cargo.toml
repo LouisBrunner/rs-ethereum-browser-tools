@@ -23,12 +23,13 @@ rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 
 [dependencies]
-ethers-core.workspace = true
+ethers.workspace = true
 ethereum-provider = { workspace = true, features = ["yew"] }
 futures-util = "0.3.28"
 futures-channel = "0.3.28"
 getrandom = { version = "0.2", features = ["js"] }
 gloo-utils = "0.1.2"
+js-sys.workspace = true
 rand = "0.8"
 reqwasm = "0.4.1"
 serde.workspace = true

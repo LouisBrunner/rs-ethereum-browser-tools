@@ -9,12 +9,16 @@ extern "C" {
     pub(crate) fn error(s: &str);
 }
 
+#[allow(unused_macros)]
 macro_rules! console_log {
     ($($t:tt)*) => (crate::console::log(&format_args!($($t)*).to_string()))
 }
+#[allow(unused_imports)]
 pub(crate) use console_log;
 
+#[allow(unused_macros)]
 macro_rules! console_error {
     ($($t:tt)*) => (crate::console::error(&format_args!($($t)*).to_string()))
 }
+#[allow(unused_imports)]
 pub(crate) use console_error;

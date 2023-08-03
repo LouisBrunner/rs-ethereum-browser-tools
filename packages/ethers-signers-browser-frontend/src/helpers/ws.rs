@@ -1,5 +1,9 @@
-use crate::ws::{messages, WebsocketEvent, WebsocketService, WebsocketStatus};
+use crate::{
+    console::{console_error, console_log},
+    ws::{messages, WebsocketEvent, WebsocketService, WebsocketStatus},
+};
 use std::sync::{Arc, Mutex};
+use wasm_bindgen::prelude::*;
 use web_sys::window;
 use yew::prelude::*;
 
@@ -10,7 +14,9 @@ pub(crate) fn get_status(ws: WSState) -> String {
             Ok(status) => match status {
                 WebsocketStatus::Connected => "connected".to_owned(),
                 WebsocketStatus::Pending => "connecting...".to_owned(),
-                WebsocketStatus::Disconnected(e) => format!("disconnected ({:?})", e),
+                WebsocketStatus::Disconnected(_e) => {
+                    format!("disconnected, check that the command is still running")
+                }
                 WebsocketStatus::Error(e) => format!("error ({:?})", e),
             },
             Err(e) => format!("error ({:?})", e),
@@ -44,6 +50,7 @@ pub(crate) struct WSState {
 
 #[hook]
 pub(crate) fn use_ws(on_message: Option<MessageCallback>) -> WSState {
+    let recreate = use_state(|| 0);
     let websocket = use_state(|| None);
     let status = use_state(|| None);
     let err = use_state(|| None);
@@ -66,7 +73,7 @@ pub(crate) fn use_ws(on_message: Option<MessageCallback>) -> WSState {
                     err.set(Some(e));
                 }
             },
-            (),
+            recreate.clone(),
         );
     }
 
@@ -124,6 +131,46 @@ pub(crate) fn use_ws(on_message: Option<MessageCallback>) -> WSState {
                 }
             },
             deps,
+        );
+    }
+
+    {
+        let recreate = recreate.clone();
+
+        use_effect_with_deps(
+            |status| {
+                match status {
+                    Some(status) => {
+                        match status {
+                            WebsocketStatus::Disconnected(_) => {
+                                let callback = Closure::<dyn Fn()>::new(move || {
+                                    console_log!("recreating websocket");
+                                    recreate.set(*recreate + 1);
+                                });
+                                match window() {
+                                    Some(window) => {
+                                        match window
+                                            .set_timeout_with_callback_and_timeout_and_arguments_0(
+                                                callback.as_ref().unchecked_ref(),
+                                                5000,
+                                            ) {
+                                            Ok(_) => {}
+                                            Err(e) => {
+                                                console_error!("error setting timeout: {:?}", e)
+                                            }
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                                callback.forget();
+                            }
+                            _ => {}
+                        };
+                    }
+                    _ => {}
+                };
+            },
+            Option::clone(&status),
         );
     }
 

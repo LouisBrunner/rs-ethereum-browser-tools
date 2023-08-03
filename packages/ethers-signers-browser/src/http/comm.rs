@@ -1,5 +1,5 @@
 use actix::prelude::*;
-use ethers_core::{
+use ethers::core::{
     abi::Address,
     types::{
         transaction::{eip2718::TypedTransaction, eip712::TypedData},

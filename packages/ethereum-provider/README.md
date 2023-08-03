@@ -19,8 +19,9 @@ ethereum-provider = "0.1.0"
 ## Examples
 
 ```rust,no_run
-# use ethereum_provider::provider::{Provider, ProviderError};
-# use web_sys::window;
+use ethereum_provider::{Provider, ProviderError};
+use web_sys::window;
+
 # async fn foo() -> Result<(), Box<dyn std::error::Error>> {
 // create a provider
 let provider = Provider::new(&window().unwrap())?;
@@ -35,8 +36,9 @@ println!("eth_requestAccounts: {:?}", v);
 ### Yew examples
 
 ```rust,no_run
-# use ethereum_provider::yew::use_provider;
-# use yew::prelude::*;
+use ethereum_provider::yew::use_provider;
+use yew::prelude::*;
+
 #[function_component]
 fn Wallet() -> Html {
     let status = use_provider();

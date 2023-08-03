@@ -17,9 +17,9 @@ ethers-signers-browser = "0.1.0"
 ## Examples
 
 ```rust,no_run
-# use ethers_core::{k256::ecdsa::SigningKey, types::TransactionRequest};
-# use ethers_signers::Signer;
-# use ethers_signers_browser::BrowserSigner;
+use ethers::{core::{k256::ecdsa::SigningKey, types::TransactionRequest}, signers::Signer};
+use ethers_signers_browser::BrowserSigner;
+
 # async fn foo() -> Result<(), Box<dyn std::error::Error>> {
 // instantiate the wallet with a chain id,
 // you will be prompted to unlock your wallet in the browser

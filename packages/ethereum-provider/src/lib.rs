@@ -3,6 +3,7 @@
 
 mod errors;
 pub mod provider;
+pub use provider::{Provider, ProviderError};
 
 #[cfg(feature = "yew")]
 pub mod yew;

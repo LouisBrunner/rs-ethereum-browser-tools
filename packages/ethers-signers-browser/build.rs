@@ -1,5 +1,5 @@
 use std::{env, path::Path};
-use trunk-build-time::{cmd::build::Build, config::ConfigOptsBuild};
+use trunk_build_time::{cmd::build::Build, config::ConfigOptsBuild};
 
 const FRONTEND: &str = "../ethers-signers-browser-frontend";
 

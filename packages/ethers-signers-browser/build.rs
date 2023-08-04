@@ -28,6 +28,7 @@ async fn main() {
     match build_frontend(FRONTEND).await {
       Err(e) => {
         eprintln!("Failed to build frontend, fallback to versionned: {}", e);
+        // FIXME: we shouldn't assume the frontend will have the same version
         let frontend_vers = format!("{}-{}", FRONTEND, std::env::var("CARGO_PKG_VERSION").expect("CARGO_PKG_VERSION not set"));
         build_frontend(&frontend_vers).await.unwrap();
       },

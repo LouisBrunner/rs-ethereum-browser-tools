@@ -1,5 +1,4 @@
-use components::label::Label;
-use components::wallet_status::WalletStatus;
+use components::{label::Label, wallet_status::WalletStatus};
 use console::console_error;
 use ethereum_provider::{
     provider::{Provider, ProviderError},

@@ -30,7 +30,7 @@ pub(super) async fn index(
     nonce: web::Data<String>,
 ) -> impl Responder {
     if info.nonce != **nonce {
-        return HttpResponse::NotFound().body("404 Not Found");
+        return HttpResponse::NotFound().body("404 Not Found")
     }
     handle_embedded_file("index.html")
 }

@@ -141,7 +141,7 @@ impl CommServer {
 impl CommServer {
     fn send_pending_message(&mut self) {
         if self.is_handling_request || !self.has_ready_client() {
-            return;
+            return
         }
         if let Some(msg) = self.pending_messages.first() {
             self.is_handling_request = true;
@@ -170,14 +170,14 @@ impl CommServer {
             InitStatus::Pending { id: original_id } => {
                 if original_id != id {
                     self.kick_current_client("invalid id on init");
-                    return;
+                    return
                 }
                 self.init_status = InitStatus::Done;
                 self.send_pending_message();
             }
             _ => {
                 self.kick_current_client("init already done");
-                return;
+                return
             }
         }
     }
@@ -188,7 +188,7 @@ impl CommServer {
                 InitStatus::Pending { id: original_id } => {
                     if original_id != id {
                         self.kick_current_client("invalid id on init");
-                        return;
+                        return
                     }
                     self.kick_current_client(format!("failed init: {:?}", content).as_str());
                 }
@@ -196,7 +196,7 @@ impl CommServer {
                     self.kick_current_client("wrong init status");
                 }
             }
-            return;
+            return
         }
 
         if let Some(msg) = self.pending_messages.first() {
@@ -245,35 +245,35 @@ impl Handler<WSReply> for CommServer {
             WSReply::Disconnect { client } => {
                 info!("Browser disconnected");
                 if !self.is_same_client(&client) {
-                    return;
+                    return
                 }
                 self.cleanup_client();
             }
             WSReply::Init { id, client } => {
                 if !self.is_same_client(&client) {
                     self.kick_client(&client, "invalid client");
-                    return;
+                    return
                 }
                 self.handle_init(id);
             }
             WSReply::Accounts { id, client, accounts } => {
                 if !self.is_same_client(&client) {
                     self.kick_client(&client, "invalid client");
-                    return;
+                    return
                 }
                 self.handle_response(id, AsyncResponseContent::Accounts { accounts });
             }
             WSReply::Signature { id, client, signature } => {
                 if !self.is_same_client(&client) {
                     self.kick_client(&client, "invalid client");
-                    return;
+                    return
                 }
                 self.handle_response(id, AsyncResponseContent::Signature { signature });
             }
             WSReply::Error { id, client, error } => {
                 if !self.is_same_client(&client) {
                     self.kick_client(&client, "invalid client");
-                    return;
+                    return
                 }
                 self.handle_response(id, AsyncResponseContent::Error { error });
             }

@@ -2,8 +2,6 @@
 name = "ethers-signers-browser-frontend"
 description = "A frontend for `ethers-signers-browser` to give access to browser wallets"
 documentation = "https://docs.rs/ethers-signers-browser-frontend"
-# This is only used internally by `ethers-signers-browser`
-publish = false
 
 version.workspace = true
 edition.workspace = true

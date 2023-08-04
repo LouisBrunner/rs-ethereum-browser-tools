@@ -43,7 +43,7 @@ impl WSFlow {
                 Request { id, content: RequestContent::SignTypedData { address, typed_data } }
             }
             comm::WSRequest::Close { reason } => {
-                return Err(reason);
+                return Err(reason)
             }
         };
         Ok(serde_json::to_string(&msg))
@@ -85,7 +85,7 @@ impl WSFlow {
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
             if Instant::now().duration_since(act.last_heartbeat) > CLIENT_TIMEOUT {
                 ctx.stop();
-                return;
+                return
             }
 
             ctx.ping(b"");

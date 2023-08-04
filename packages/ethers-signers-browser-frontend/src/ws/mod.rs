@@ -1,4 +1,5 @@
 use crate::console::console_error;
+pub use ethers_signers_browser_types::ws::messages;
 use futures_channel::mpsc::{channel, SendError, Sender};
 use futures_util::{SinkExt, StreamExt};
 use gloo_utils::errors::JsError;
@@ -6,7 +7,6 @@ use rand::Rng;
 use reqwasm::websocket::{futures::WebSocket, Message, WebSocketError as WSError};
 use std::sync::{Arc, Mutex};
 use wasm_bindgen_futures::spawn_local;
-pub use ethers_signers_browser_types::ws::messages;
 
 #[derive(thiserror::Error, Debug)]
 pub enum WebsocketError {

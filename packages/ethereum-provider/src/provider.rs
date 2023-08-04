@@ -1,8 +1,7 @@
 use js_sys::{Function, Object};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::fmt;
-use std::vec::Vec;
+use std::{fmt, vec::Vec};
 use wasm_bindgen::{closure::Closure, prelude::*, JsValue};
 use web_sys::Window;
 
@@ -339,7 +338,7 @@ impl Provider {
 
     pub async fn request_accounts(&self) -> Result<Vec<String>, ProviderError> {
         let data = self.request::<()>(REQUEST_ACCOUNTS.to_owned(), None).await?;
-        Ok(parse_js(data)?)
+        parse_js(data)
     }
 
     pub async fn request_sign_text(
@@ -353,7 +352,7 @@ impl Provider {
                 Some(RequestMethodParams::Vec(vec![message, address])),
             )
             .await?;
-        Ok(parse_js(data)?)
+        parse_js(data)
     }
 
     pub async fn request_sign_hash(
@@ -367,7 +366,7 @@ impl Provider {
                 Some(RequestMethodParams::Vec(vec![address, message_hash])),
             )
             .await?;
-        Ok(parse_js(data)?)
+        parse_js(data)
     }
 
     pub async fn request_sign_typed_data<T: Serialize>(
@@ -384,7 +383,7 @@ impl Provider {
                 ])),
             )
             .await?;
-        Ok(parse_js(data)?)
+        parse_js(data)
     }
 
     pub async fn request_sign_transaction(
@@ -397,6 +396,6 @@ impl Provider {
                 Some(RequestMethodParams::Vec(vec![transaction])),
             )
             .await?;
-        Ok(parse_js(data)?)
+        parse_js(data)
     }
 }

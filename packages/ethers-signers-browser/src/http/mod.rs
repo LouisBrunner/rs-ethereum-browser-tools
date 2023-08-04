@@ -230,7 +230,7 @@ impl Server {
                                 }
                                 _ => Err(ServerError::Comm("unexpected response".to_string())),
                             },
-                        };
+                        }
                     }
                     // ignore ids that don't match
                 }

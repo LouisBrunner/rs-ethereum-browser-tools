@@ -108,7 +108,7 @@ impl BrowserSigner {
 
         let addresses = server.get_user_addresses().await?;
         if addresses.is_empty() {
-            return Err(BrowserSignerError::Other("no addresses found in browser".to_owned()));
+            return Err(BrowserSignerError::Other("no addresses found in browser".to_owned()))
         }
 
         Ok(Self { chain_id, server, addresses, url })

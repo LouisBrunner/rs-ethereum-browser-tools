@@ -149,7 +149,7 @@ pub fn use_provider() -> Option<Result<ProviderStatus, ProviderError>> {
     }
 
     if let Some(ref err) = Option::clone(&error) {
-        return Some(Err(err.clone()));
+        return Some(Err(err.clone()))
     };
 
     provider.as_deref().map(|provider| {

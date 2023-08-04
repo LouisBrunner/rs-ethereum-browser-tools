@@ -1,4 +1,5 @@
-# ethers-signers-browser
+<p align="center"><img width=100 src="https://github.com/LouisBrunner/rs-ethereum-browser-tools/blob/main/packages/ethers-signers-browser-frontend/static/logo.png" /></p>
+<h1 align="center">ethers-signers-browser</h1>
 
 A [`ethers-signers`](https://github.com/gakonst/ethers-rs)-compatible `Signer` which uses the browser's `window.ethereum` object to sign transactions, allowing you to use your Coinbase Wallet, MetaMask, or other browser-based Ethereum wallet from the comfort of the CLI.
 

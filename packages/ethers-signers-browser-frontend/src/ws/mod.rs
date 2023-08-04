@@ -18,8 +18,10 @@ pub enum WebsocketError {
     #[error("send error: {0}")]
     Send(#[from] SendError),
     #[error("protocol error: {0}")]
+    #[allow(dead_code)] // FIXME: incorrect lint issue
     Protocol(String),
     #[error("{0}")]
+    #[allow(dead_code)] // FIXME: incorrect lint issue
     Other(String),
 }
 
@@ -64,6 +66,7 @@ pub(super) struct WebsocketService {
 }
 
 impl WebsocketService {
+    #[allow(dead_code)] // FIXME: incorrect lint issue
     pub fn new(path: String, secure: bool) -> Result<Self, WebsocketError> {
         let id = rand::thread_rng().gen::<usize>();
 
@@ -144,24 +147,29 @@ impl WebsocketService {
         Ok(Self { id, tx: in_tx, status, subscribers })
     }
 
+    #[allow(dead_code)] // FIXME: incorrect lint issue
     pub fn id(&self) -> usize {
         self.id
     }
 
+    #[allow(dead_code)] // FIXME: incorrect lint issue
     pub async fn send(&mut self, msg: messages::Response) -> Result<(), WebsocketError> {
         self.tx.send(serde_json::to_string(&msg)?).await?;
         Ok(())
     }
 
+    #[allow(dead_code)] // FIXME: incorrect lint issue
     pub fn subscribe(&mut self, callback: CallBack) {
         self.subscribers.lock().expect("poisoned mutex").push(callback);
     }
 
+    #[allow(dead_code)] // FIXME: incorrect lint issue
     pub fn unsubscribe(&mut self, callback: CallBack) {
         let mut subs = self.subscribers.lock().expect("poisoned mutex");
         subs.retain(|sub| sub != &callback);
     }
 
+    #[allow(dead_code)] // FIXME: incorrect lint issue
     pub fn status(&self) -> WebsocketStatus {
         self.status.lock().expect("poisoned mutex").clone()
     }

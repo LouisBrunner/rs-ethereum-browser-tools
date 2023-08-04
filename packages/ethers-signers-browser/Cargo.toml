@@ -3,8 +3,8 @@ name = "ethers-signers-browser"
 readme = "README.md"
 description = "A `ethers-signers`-compatible Signer to interact with browser-based wallets"
 documentation = "https://docs.rs/ethers-signers-browser"
+version = "0.1.0"
 
-version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

@@ -2,8 +2,8 @@
 name = "ethereum-provider"
 description = "EIP-1193 Ethereum Provider API for Rust"
 documentation = "https://docs.rs/ethereum-provider"
+version = "0.1.0"
 
-version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

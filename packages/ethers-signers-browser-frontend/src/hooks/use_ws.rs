@@ -7,25 +7,6 @@ use wasm_bindgen::prelude::*;
 use web_sys::window;
 use yew::prelude::*;
 
-pub(crate) fn get_status(ws: WSState) -> String {
-    match ws.status {
-        None => "connecting...".to_owned(),
-        Some(status) => {
-            match status {
-                Ok(status) => match status {
-                    WebsocketStatus::Connected => "connected".to_owned(),
-                    WebsocketStatus::Pending => "connecting...".to_owned(),
-                    WebsocketStatus::Disconnected(_e) => {
-                        format!("disconnecte (check that the command is still running), reconnecting...")
-                    }
-                    WebsocketStatus::Error(e) => format!("error ({})", e),
-                },
-                Err(e) => format!("error ({})", e),
-            }
-        }
-    }
-}
-
 fn create_ws() -> Result<WebsocketService, String> {
     let window = window().ok_or("no window")?;
     let host = window.location().host().map_err(|e| format!("{:?}", e))?;
@@ -47,7 +28,7 @@ pub(crate) struct MessageCallbackArgs {
 pub(crate) type MessageCallback = yew::Callback<MessageCallbackArgs>;
 
 pub(crate) struct WSState {
-    status: Option<Result<WebsocketStatus, String>>,
+    pub status: Option<Result<WebsocketStatus, String>>,
 }
 
 #[hook]

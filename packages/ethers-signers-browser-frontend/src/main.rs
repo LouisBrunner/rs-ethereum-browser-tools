@@ -1,15 +1,20 @@
-use self::console::console_error;
+use components::label::Label;
+use components::wallet_status::WalletStatus;
+use console::console_error;
 use ethereum_provider::{
     provider::{Provider, ProviderError},
     yew::{use_provider, ProviderStatus},
 };
 use ethers::types::H160;
-use helpers::wallet::{address_to_string, transform_transaction};
+use helpers::ethers::{address_to_string, transform_transaction};
+use hooks::use_ws::use_ws;
 use std::str::FromStr;
 use yew::prelude::*;
 
+mod components;
 mod console;
 mod helpers;
+mod hooks;
 mod ws;
 
 async fn call_provider(
@@ -85,10 +90,10 @@ async fn call_provider(
 }
 
 fn handle_request(
-    args: helpers::ws::MessageCallbackArgs,
+    args: hooks::use_ws::MessageCallbackArgs,
     status: &Option<Result<ProviderStatus, ProviderError>>,
 ) {
-    let helpers::ws::MessageCallbackArgs { request, websocket } = args;
+    let hooks::use_ws::MessageCallbackArgs { request, websocket } = args;
 
     let status = status.clone();
     wasm_bindgen_futures::spawn_local(async move {
@@ -136,7 +141,7 @@ fn App() -> Html {
         let status = status.clone();
         use_callback(handle_request, status)
     };
-    let ws = helpers::ws::use_ws(Some(callback));
+    let ws = use_ws(Some(callback));
 
     html! {
       <>
@@ -144,9 +149,9 @@ fn App() -> Html {
           <img width=128 height=128 src="static/logo.png" alt="App Logo"/>
           <h1 style="margin-top: 0;"><pre>{ "ethers-signers-browser" }</pre></h1>
         </header>
-        <section>
-          <pre>{ format!("Server connection: {}", helpers::ws::get_status(ws) )}</pre>
-          {helpers::wallet::get_status(status)}
+        <section style="max-width: 600px; margin: auto;">
+          <Label name="Server connection" value={helpers::utils::get_ws_status(ws)} />
+          <WalletStatus status={status} />
         </section>
       </>
     }

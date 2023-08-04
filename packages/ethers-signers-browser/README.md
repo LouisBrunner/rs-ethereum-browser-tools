@@ -39,3 +39,33 @@ signature.verify("hello world", wallet.address()).unwrap();
 # Ok(())
 # }
 ```
+
+## Screenshots
+
+Let's say you were running the following code:
+
+```rust,no_run
+use ethers::signers::Signer;
+use ethers_signers_browser::BrowserSigner;
+
+# async fn foo() -> Result<(), Box<dyn std::error::Error>> {
+let signer = BrowserSigner::new(14).await.unwrap();
+let message = "hello world".as_bytes();
+let sig = signer.sign_message(&message).await.unwrap();
+# Ok(())
+# }
+```
+
+When the `BrowserSigner` is created, your browser will open a page and prompt you to unlock your wallet. The URL will look something like this: `http://localhost:PORT/?nonce=NONCE` where `PORT` and `NONCE` are random numbers, e.g. `http://localhost:7777/?nonce=123`.
+
+You will then see the following page:
+
+![Homepage of the signer displaying some metadata](https://github.com/LouisBrunner/rs-ethereum-browser-tools/blob/main/packages/ethers-signers-browser/docs/0_homepage.png)
+
+And, probably at the same time, a popup from your wallet:
+
+![CoinBase Wallet popup to unlock your wallet](https://github.com/LouisBrunner/rs-ethereum-browser-tools/blob/main/packages/ethers-signers-browser/docs/1_connection.png)
+
+Once you have unlocked your wallet, your code will continue to run until it reaches `sign_message`, after which you will be prompted to sign the message:
+
+![CoinBase Wallet popup to sign the message](https://github.com/LouisBrunner/rs-ethereum-browser-tools/blob/main/packages/ethers-signers-browser/docs/2_signing.png)

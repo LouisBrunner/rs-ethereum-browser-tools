@@ -1,2 +1,2 @@
-pub(super) mod wallet;
-pub(super) mod ws;
+pub(super) mod ethers;
+pub(super) mod utils;

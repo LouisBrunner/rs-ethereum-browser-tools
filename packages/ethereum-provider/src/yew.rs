@@ -1,5 +1,6 @@
 use super::provider::{self, ProviderError};
 use std::rc::Rc;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::{window, Window};
 use yew::prelude::*;
 
@@ -106,6 +107,44 @@ pub fn use_provider() -> Option<Result<ProviderStatus, ProviderError>> {
                 }
             },
             provider,
+        );
+    }
+
+    {
+        let provider = provider.clone();
+        let error = error.clone();
+        let chain_id = chain_id.clone();
+        let accounts_setter = accounts.clone();
+
+        #[derive(PartialEq)]
+        struct Deps {
+            provider: Option<Rc<provider::Provider>>,
+            chain_id: Option<String>,
+        }
+        let deps = Deps { provider: Option::clone(&provider), chain_id: Option::clone(&chain_id) };
+
+        use_effect_with_deps(
+            move |deps| {
+                let Deps { provider, chain_id: _ } = deps;
+                match provider {
+                    None => {}
+                    Some(provider) => {
+                        let provider = provider.clone();
+                        spawn_local(async move {
+                            match provider.request_accounts().await {
+                                Ok(accounts) => {
+                                    accounts_setter.set(Some(accounts));
+                                }
+                                Err(err) => {
+                                    error.set(Some(err));
+                                    accounts_setter.set(None);
+                                }
+                            };
+                        });
+                    }
+                }
+            },
+            deps,
         );
     }
 

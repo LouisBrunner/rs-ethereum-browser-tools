@@ -29,6 +29,9 @@ let provider = Provider::new(&window().unwrap())?;
 // request accounts
 let v = provider.request::<()>("eth_requestAccounts".to_string(), None).await?;
 println!("eth_requestAccounts: {:?}", v);
+// or use the convenience method
+let v = provider.request_accounts().await?;
+println!("accounts: {:?}", v);
 # Ok(())
 # }
 ```

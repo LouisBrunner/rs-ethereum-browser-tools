@@ -10,17 +10,19 @@ use yew::prelude::*;
 pub(crate) fn get_status(ws: WSState) -> String {
     match ws.status {
         None => "connecting...".to_owned(),
-        Some(status) => match status {
-            Ok(status) => match status {
-                WebsocketStatus::Connected => "connected".to_owned(),
-                WebsocketStatus::Pending => "connecting...".to_owned(),
-                WebsocketStatus::Disconnected(_e) => {
-                    format!("disconnected, check that the command is still running")
-                }
-                WebsocketStatus::Error(e) => format!("error ({})", e),
-            },
-            Err(e) => format!("error ({})", e),
-        },
+        Some(status) => {
+            match status {
+                Ok(status) => match status {
+                    WebsocketStatus::Connected => "connected".to_owned(),
+                    WebsocketStatus::Pending => "connecting...".to_owned(),
+                    WebsocketStatus::Disconnected(_e) => {
+                        format!("disconnecte (check that the command is still running), reconnecting...")
+                    }
+                    WebsocketStatus::Error(e) => format!("error ({})", e),
+                },
+                Err(e) => format!("error ({})", e),
+            }
+        }
     }
 }
 

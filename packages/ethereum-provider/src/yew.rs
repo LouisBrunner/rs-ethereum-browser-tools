@@ -3,18 +3,6 @@ use std::rc::Rc;
 use web_sys::{window, Window};
 use yew::prelude::*;
 
-// TODO: remove
-use wasm_bindgen::prelude::wasm_bindgen;
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-}
-
-macro_rules! console_log {
-    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
-}
-
 fn get_provider(window: &Option<Window>) -> Result<provider::Provider, ProviderError> {
     let window: &Window =
         window.as_ref().ok_or(ProviderError::Unsupported("no window available".to_owned()))?;
@@ -24,53 +12,37 @@ fn get_provider(window: &Option<Window>) -> Result<provider::Provider, ProviderE
 
 fn listen_to_provider(
     provider: provider::Provider,
+    error: UseStateHandle<Option<ProviderError>>,
     chain_id: UseStateHandle<Option<String>>,
     accounts: UseStateHandle<Option<Vec<String>>>,
 ) -> Result<Box<dyn Fn()>, provider::ProviderError> {
-    let connect_cb = Box::new(|info: Result<provider::ConnectInfo, ProviderError>| {
-        console_log!("on_connect: {:?}", info);
-    });
-
-    let chain_changed_cb =
+    let chain_changed_cb = {
+        let error = error.clone();
         Box::new(move |new_chain_id: Result<String, ProviderError>| match new_chain_id {
             Ok(new_chain_id) => chain_id.set(Some(new_chain_id)),
-            Err(err) => console_log!("on_chain_changed: {:?}", err),
-        });
-
-    let message_cb = Box::new(|message: Result<provider::Message, ProviderError>| {
-        console_log!("on_message: {:?}", message);
-    });
+            Err(err) => error.set(Some(err)),
+        })
+    };
 
     let accounts_changed_cb =
         Box::new(move |new_accounts: Result<Vec<String>, ProviderError>| match new_accounts {
             Ok(new_accounts) => accounts.set(Some(new_accounts)),
-            Err(err) => console_log!("on_accounts_changed: {:?}", err),
+            Err(err) => error.set(Some(err)),
         });
 
-    let disconnect_cb = Box::new(|err: Result<provider::RPCError, ProviderError>| {
-        console_log!("on_disconnect: {:?}", err);
-    });
-
-    let connect_closure = provider.on_connect(connect_cb)?;
     let chain_changed_closure = provider.on_chain_changed(chain_changed_cb)?;
-    let message_closure = provider.on_message(message_cb)?;
     let accounts_changed_closure = provider.on_accounts_changed(accounts_changed_cb)?;
-    let disconnect_closure = provider.on_disconnect(disconnect_cb)?;
 
     Ok(Box::new(move || {
         // FIXME: no error checking because it's too hard (and it's just for logging anyway)
-        let _ = provider.remove_connect_listener(&connect_closure);
         let _ = provider.remove_chain_changed_listener(&chain_changed_closure);
-        let _ = provider.remove_message_listener(&message_closure);
         let _ = provider.remove_accounts_changed_listener(&accounts_changed_closure);
-        let _ = provider.remove_disconnect_listener(&disconnect_closure);
     }))
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ProviderStatus {
     pub provider: provider::Provider,
-    pub connected: Option<bool>,
     pub chain_id: Option<String>,
     pub accounts: Option<Vec<String>>,
 }
@@ -115,7 +87,12 @@ pub fn use_provider() -> Option<Result<ProviderStatus, ProviderError>> {
                         Box::new(|| {})
                     }
                     Some(provider) => {
-                        match listen_to_provider(provider.clone(), chain_id, accounts) {
+                        match listen_to_provider(
+                            provider.clone(),
+                            error.clone(),
+                            chain_id,
+                            accounts,
+                        ) {
                             Ok(cleanup) => {
                                 error.set(None);
                                 cleanup
@@ -139,7 +116,6 @@ pub fn use_provider() -> Option<Result<ProviderStatus, ProviderError>> {
     provider.as_deref().map(|provider| {
         Ok(ProviderStatus {
             provider: provider.clone(),
-            connected: None,
             chain_id: Option::clone(&chain_id),
             accounts: Option::clone(&accounts),
         })

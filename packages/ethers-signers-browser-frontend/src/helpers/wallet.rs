@@ -25,10 +25,6 @@ pub(crate) fn get_status(status: Option<Result<ProviderStatus, ProviderError>>) 
                 Ok(status) => html! {
                   <div>
                     <pre>{ format!("Wallet: {}", get_name(&status)) }</pre>
-                    <pre>{ format!("Connected: {}", match status.connected {
-                      Some(status) => format!("{}", status),
-                      None => "unknown".to_owned(),
-                    }) }</pre>
                     <pre>{ format!("Chain ID: {}", match status.chain_id {
                       Some(chain_id) => chain_id,
                       None => "unknown".to_owned(),

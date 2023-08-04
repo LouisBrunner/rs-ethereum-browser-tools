@@ -6,8 +6,7 @@ use rand::Rng;
 use reqwasm::websocket::{futures::WebSocket, Message, WebSocketError as WSError};
 use std::sync::{Arc, Mutex};
 use wasm_bindgen_futures::spawn_local;
-
-pub mod messages;
+pub use ethers_signers_browser_types::ws::messages;
 
 #[derive(thiserror::Error, Debug)]
 pub enum WebsocketError {

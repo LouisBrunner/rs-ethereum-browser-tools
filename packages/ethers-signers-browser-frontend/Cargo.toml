@@ -25,6 +25,7 @@ all-features = true
 [dependencies]
 ethers.workspace = true
 ethereum-provider = { workspace = true, features = ["yew"] }
+ethers-signers-browser-types.workspace = true
 futures-util = "0.3.28"
 futures-channel = "0.3.28"
 getrandom = { version = "0.2", features = ["js"] }

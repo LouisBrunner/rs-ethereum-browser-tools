@@ -2,7 +2,7 @@ use super::comm;
 use actix::{prelude::*, Actor, StreamHandler};
 use actix_web_actors::ws;
 use bytestring::ByteString;
-use ethers_signers_browser_frontend::ws::messages::{
+use ethers_signers_browser_types::ws::messages::{
     Request, RequestContent, Response, ResponseContent,
 };
 use log::{error, warn};

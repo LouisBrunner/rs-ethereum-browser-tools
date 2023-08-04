@@ -22,11 +22,13 @@ all-features = true
 members = [
   "packages/ethers-signers-browser",
   "packages/ethers-signers-browser-frontend",
+  "packages/ethers-signers-browser-types",
   "packages/ethereum-provider",
 ]
 
 default-members = [
   "packages/ethers-signers-browser",
+  "packages/ethers-signers-browser-types",
   "packages/ethereum-provider",
 ]
 
@@ -36,6 +38,7 @@ resolver = "2"
 [workspace.dependencies]
 ethereum-provider = { path = "packages/ethereum-provider", default-features = false }
 ethers-signers-browser = { path = "packages/ethers-signers-browser", default-features = false }
+ethers-signers-browser-types = { path = "packages/ethers-signers-browser-types", default-features = false }
 ethers-signers-browser-frontend = { path = "packages/ethers-signers-browser-frontend", default-features = false }
 
 ethers = "2.0.8"
@@ -47,5 +50,5 @@ serde_json = "1.0"
 thiserror = "1.0"
 wasm-bindgen = { version = "0.2.67", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.25"
-web-sys = "0.3.44"
+web-sys = { version = "0.3.64", features = ["Window"] }
 yew = { version = "0.20.0", default-features = false }

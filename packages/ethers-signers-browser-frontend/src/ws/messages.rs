@@ -18,9 +18,10 @@ pub struct Request {
 pub enum RequestContent {
     Init { chain_id: u64 },
     Accounts {},
-    SignMessage { message: H256 },
+    SignBinaryMessage { address: Address, message: H256 },
+    SignTextMessage { address: Address, message: String },
     SignTransaction { transaction: TypedTransaction },
-    SignTypedData { typed_data: TypedData },
+    SignTypedData { address: Address, typed_data: TypedData },
 }
 
 #[derive(Serialize, Deserialize, Debug)]

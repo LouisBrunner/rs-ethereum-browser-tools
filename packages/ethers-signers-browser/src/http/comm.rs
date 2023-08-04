@@ -15,9 +15,10 @@ use std::sync::mpsc;
 pub(super) enum WSRequest {
     Init { id: String, chain_id: u64 },
     Accounts { id: String },
-    SignMessage { id: String, message: H256 },
+    SignBinaryMessage { id: String, address: Address, message: H256 },
+    SignTextMessage { id: String, address: Address, message: String },
     SignTransaction { id: String, transaction: TypedTransaction },
-    SignTypedData { id: String, typed_data: TypedData },
+    SignTypedData { id: String, address: Address, typed_data: TypedData },
     Close { reason: String },
 }
 
@@ -46,9 +47,10 @@ pub(super) struct AsyncRequest {
 #[derive(Clone, Debug)]
 pub(super) enum AsyncRequestContent {
     Accounts {},
-    SignMessage { message: H256 },
+    SignTextMessage { address: Address, message: String },
+    SignBinaryMessage { address: Address, message: H256 },
     SignTransaction { transaction: TypedTransaction },
-    SignTypedData { typed_data: TypedData },
+    SignTypedData { address: Address, typed_data: TypedData },
 }
 
 /// Comm sends this message to the server
@@ -145,14 +147,17 @@ impl CommServer {
             self.client.as_ref().unwrap().do_send(match msg.clone() {
                 AsyncRequest { id, content } => match content {
                     AsyncRequestContent::Accounts {} => WSRequest::Accounts { id },
-                    AsyncRequestContent::SignMessage { message } => {
-                        WSRequest::SignMessage { id, message }
+                    AsyncRequestContent::SignTextMessage { address, message } => {
+                        WSRequest::SignTextMessage { id, address, message }
+                    }
+                    AsyncRequestContent::SignBinaryMessage { address, message } => {
+                        WSRequest::SignBinaryMessage { id, address, message }
                     }
                     AsyncRequestContent::SignTransaction { transaction } => {
                         WSRequest::SignTransaction { id, transaction }
                     }
-                    AsyncRequestContent::SignTypedData { typed_data } => {
-                        WSRequest::SignTypedData { id, typed_data }
+                    AsyncRequestContent::SignTypedData { address, typed_data } => {
+                        WSRequest::SignTypedData { id, address, typed_data }
                     }
                 },
             });

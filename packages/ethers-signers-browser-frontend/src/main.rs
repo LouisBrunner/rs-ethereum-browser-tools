@@ -1,24 +1,16 @@
-use std::str::FromStr;
-
-use self::console::{console_error, console_log};
+use self::console::console_error;
 use ethereum_provider::{
     provider::{Provider, ProviderError},
     yew::{use_provider, ProviderStatus},
 };
 use ethers::types::H160;
-use js_sys::Array;
-use serde::Serialize;
+use helpers::wallet::{address_to_string, transform_transaction};
+use std::str::FromStr;
 use yew::prelude::*;
 
 mod console;
 mod helpers;
 mod ws;
-
-#[derive(Serialize)]
-struct SwitchEthereumChainParams {
-    #[serde(rename = "chainId")]
-    chain_id: String,
-}
 
 async fn call_provider(
     provider: Provider,
@@ -27,15 +19,7 @@ async fn call_provider(
     match request.content {
         ws::messages::RequestContent::Init { chain_id } => {
             if chain_id != 0 {
-                provider
-                    .clone()
-                    .request(
-                        "wallet_switchEthereumChain".to_string(),
-                        Some(ethereum_provider::provider::RequestMethodParams::Vec(vec![
-                            SwitchEthereumChainParams { chain_id: format!("{:x}", chain_id) },
-                        ])),
-                    )
-                    .await?;
+                provider.clone().request_switch_chain(format!("{:x}", chain_id)).await?;
             }
             Ok(ws::messages::Response {
                 id: request.id,
@@ -43,24 +27,15 @@ async fn call_provider(
             })
         }
         ws::messages::RequestContent::Accounts {} => {
-            let v = provider.clone().request::<()>("eth_requestAccounts".to_string(), None).await?;
-            let accounts = Array::from(&v)
-                .to_vec()
+            let accounts = provider
+                .request_accounts()
+                .await?
                 .into_iter()
-                .filter_map(|v| {
-                    let s = match v.as_string() {
-                        Some(s) => s,
-                        None => {
-                            console_error!("error parsing address: {:?}", v);
-                            return None;
-                        }
-                    };
-                    match H160::from_str(s.as_str()) {
-                        Ok(address) => Some(address),
-                        Err(err) => {
-                            console_error!("error parsing address: {:?}", err);
-                            None
-                        }
+                .filter_map(|v| match H160::from_str(v.as_str()) {
+                    Ok(address) => Some(address),
+                    Err(err) => {
+                        console_error!("error parsing address: {:?}", err);
+                        None
                     }
                 })
                 .collect();
@@ -69,17 +44,42 @@ async fn call_provider(
                 content: ws::messages::ResponseContent::Accounts { addresses: accounts },
             })
         }
-        ws::messages::RequestContent::SignMessage { message } => {
-            console_log!("message: {}", message);
-            Err(ProviderError::Unsupported("sign message5".to_string()))
+        ws::messages::RequestContent::SignTextMessage { address, message } => {
+            let sig = provider.request_sign_text(address_to_string(address), message).await?;
+            Ok(ws::messages::Response {
+                id: request.id,
+                content: ws::messages::ResponseContent::Signature { signature: sig },
+            })
+        }
+        ws::messages::RequestContent::SignBinaryMessage { address, message } => {
+            let sig =
+                provider.request_sign_hash(address_to_string(address), message.to_string()).await?;
+            Ok(ws::messages::Response {
+                id: request.id,
+                content: ws::messages::ResponseContent::Signature { signature: sig },
+            })
         }
         ws::messages::RequestContent::SignTransaction { transaction } => {
-            console_log!("transaction: {:?}", transaction);
-            Err(ProviderError::Unsupported("sign transaction".to_string()))
+            let (chain_id, transaction) = match transform_transaction(transaction) {
+                Ok(transaction) => transaction,
+                Err(e) => return Err(ProviderError::Unsupported(format!("transaction: {}", e))),
+            };
+            if let Some(chain_id) = chain_id {
+                provider.clone().request_switch_chain(format!("{:x}", chain_id)).await?;
+            }
+            let sig = provider.request_sign_transaction(transaction).await?;
+            Ok(ws::messages::Response {
+                id: request.id,
+                content: ws::messages::ResponseContent::Signature { signature: sig },
+            })
         }
-        ws::messages::RequestContent::SignTypedData { typed_data } => {
-            console_log!("typed_data: {:?}", typed_data);
-            Err(ProviderError::Unsupported("sign typed data".to_string()))
+        ws::messages::RequestContent::SignTypedData { address, typed_data } => {
+            let sig =
+                provider.request_sign_typed_data(address_to_string(address), typed_data).await?;
+            Ok(ws::messages::Response {
+                id: request.id,
+                content: ws::messages::ResponseContent::Signature { signature: sig },
+            })
         }
     }
 }

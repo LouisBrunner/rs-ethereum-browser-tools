@@ -1,10 +1,9 @@
-use crate::errors::console_error;
-
 use super::provider::{self, ProviderError};
 use std::rc::Rc;
 use web_sys::{window, Window};
 use yew::prelude::*;
 
+// TODO: remove
 use wasm_bindgen::prelude::wasm_bindgen;
 #[wasm_bindgen]
 extern "C" {
@@ -25,33 +24,30 @@ fn get_provider(window: &Option<Window>) -> Result<provider::Provider, ProviderE
 
 fn listen_to_provider(
     provider: provider::Provider,
-    chain_id: UseStateHandle<Option<u64>>,
+    chain_id: UseStateHandle<Option<String>>,
     accounts: UseStateHandle<Option<Vec<String>>>,
 ) -> Result<Box<dyn Fn()>, provider::ProviderError> {
-    let connect_cb = Box::new(|info: provider::ConnectInfo| {
+    let connect_cb = Box::new(|info: Result<provider::ConnectInfo, ProviderError>| {
         console_log!("on_connect: {:?}", info);
     });
 
     let chain_changed_cb =
-        Box::new(move |new_chain_id: String| match new_chain_id.parse::<u64>() {
-            Ok(value) => {
-                chain_id.set(Some(value));
-            }
-            Err(err) => {
-                console_error!("invalid chain id: {:?}", err);
-                chain_id.set(None);
-            }
+        Box::new(move |new_chain_id: Result<String, ProviderError>| match new_chain_id {
+            Ok(new_chain_id) => chain_id.set(Some(new_chain_id)),
+            Err(err) => console_log!("on_chain_changed: {:?}", err),
         });
 
-    let message_cb = Box::new(|message: provider::Message| {
+    let message_cb = Box::new(|message: Result<provider::Message, ProviderError>| {
         console_log!("on_message: {:?}", message);
     });
 
-    let accounts_changed_cb = Box::new(move |new_accounts: Vec<String>| {
-        accounts.set(Some(new_accounts));
-    });
+    let accounts_changed_cb =
+        Box::new(move |new_accounts: Result<Vec<String>, ProviderError>| match new_accounts {
+            Ok(new_accounts) => accounts.set(Some(new_accounts)),
+            Err(err) => console_log!("on_accounts_changed: {:?}", err),
+        });
 
-    let disconnect_cb = Box::new(|err: provider::RPCError| {
+    let disconnect_cb = Box::new(|err: Result<provider::RPCError, ProviderError>| {
         console_log!("on_disconnect: {:?}", err);
     });
 
@@ -62,7 +58,7 @@ fn listen_to_provider(
     let disconnect_closure = provider.on_disconnect(disconnect_cb)?;
 
     Ok(Box::new(move || {
-        // FIXME: no error checking because it's too hard (and it's just for logging)
+        // FIXME: no error checking because it's too hard (and it's just for logging anyway)
         let _ = provider.remove_connect_listener(&connect_closure);
         let _ = provider.remove_chain_changed_listener(&chain_changed_closure);
         let _ = provider.remove_message_listener(&message_closure);
@@ -75,7 +71,7 @@ fn listen_to_provider(
 pub struct ProviderStatus {
     pub provider: provider::Provider,
     pub connected: Option<bool>,
-    pub chain_id: Option<u64>,
+    pub chain_id: Option<String>,
     pub accounts: Option<Vec<String>>,
 }
 

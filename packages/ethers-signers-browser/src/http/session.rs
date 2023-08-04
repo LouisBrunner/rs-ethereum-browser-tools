@@ -29,14 +29,17 @@ impl WSFlow {
             comm::WSRequest::Accounts { id } => {
                 Request { id, content: RequestContent::Accounts {} }
             }
-            comm::WSRequest::SignMessage { id, message } => {
-                Request { id, content: RequestContent::SignMessage { message } }
+            comm::WSRequest::SignTextMessage { id, address, message } => {
+                Request { id, content: RequestContent::SignTextMessage { address, message } }
+            }
+            comm::WSRequest::SignBinaryMessage { id, address, message } => {
+                Request { id, content: RequestContent::SignBinaryMessage { address, message } }
             }
             comm::WSRequest::SignTransaction { id, transaction } => {
                 Request { id, content: RequestContent::SignTransaction { transaction } }
             }
-            comm::WSRequest::SignTypedData { id, typed_data } => {
-                Request { id, content: RequestContent::SignTypedData { typed_data } }
+            comm::WSRequest::SignTypedData { id, address, typed_data } => {
+                Request { id, content: RequestContent::SignTypedData { address, typed_data } }
             }
             comm::WSRequest::Close { reason } => {
                 return Err(reason);
@@ -134,7 +137,7 @@ impl Handler<comm::WSRequest> for WSFlow {
                     self.close(
                         ctx,
                         format!("error forwarding message: {}", e),
-                        Some("internal error".to_owned()),
+                        Some("internal error (client)".to_owned()),
                     );
                 }
             },
@@ -163,7 +166,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WSFlow {
                         self.close(
                             ctx,
                             format!("error forwarding message: {}", e),
-                            Some("internal error".to_owned()),
+                            Some("internal error (server)".to_owned()),
                         );
                     }
                 };

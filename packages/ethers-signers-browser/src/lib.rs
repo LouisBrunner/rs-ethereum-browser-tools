@@ -1,14 +1,15 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-use ethers::core::{
-    types::{
+pub use ethers::signers::Signer;
+use ethers::{
+    core::types::{
         transaction::{eip2718::TypedTransaction, eip712::Eip712},
-        Address, Signature as EthSig, H256,
+        Address, Signature as EthSig,
     },
+    types::transaction::eip712::TypedData,
     utils::hash_message,
 };
-pub use ethers::signers::Signer;
 use http::ServerOptions;
 use std::str::FromStr;
 use tracing::{instrument, trace};
@@ -117,6 +118,26 @@ impl BrowserSigner {
     }
 }
 
+pub trait TypedDataBrowserCompatible {
+    fn as_browser_compatible(&self) -> Option<TypedData>;
+}
+
+impl TypedDataBrowserCompatible for TypedData {
+    fn as_browser_compatible(&self) -> Option<TypedData> {
+        Some(self.clone())
+    }
+}
+
+impl BrowserSigner {
+    pub async fn sign_typed_data_raw(
+        &self,
+        data: &TypedData,
+    ) -> Result<EthSig, BrowserSignerError> {
+        let sig = self.server.sign_typed_data(self.address(), data.clone()).await?;
+        Ok(EthSig::from_str(&sig)?)
+    }
+}
+
 #[async_trait::async_trait]
 impl Signer for BrowserSigner {
     type Error = BrowserSignerError;
@@ -130,9 +151,11 @@ impl Signer for BrowserSigner {
         let message_hash = hash_message(message);
         trace!("{:?}", message_hash);
         trace!("{:?}", message);
-        let raw_sig = self.server.sign_message(message_hash).await?;
-        let sig = EthSig::from_str(&raw_sig)?;
-        Ok(sig)
+        let sig = match String::from_utf8(message.to_vec()) {
+            Ok(s) => self.server.sign_text_message(self.address(), s).await,
+            Err(_) => self.server.sign_binary_message(self.address(), message_hash).await,
+        }?;
+        Ok(EthSig::from_str(&sig)?)
     }
 
     #[instrument(err)]
@@ -140,22 +163,17 @@ impl Signer for BrowserSigner {
         let mut tx_with_chain = tx.clone();
         let chain_id = tx_with_chain.chain_id().map(|id| id.as_u64()).unwrap_or(self.chain_id);
         tx_with_chain.set_chain_id(chain_id);
-        let raw_sig = self.server.sign_transaction(tx_with_chain).await?;
-        let sig = EthSig::from_str(&raw_sig)?;
-        Ok(sig)
+        let sig = self.server.sign_transaction(tx_with_chain).await?;
+        Ok(EthSig::from_str(&sig)?)
     }
 
     async fn sign_typed_data<T: Eip712 + Send + Sync>(
         &self,
-        payload: &T,
+        _payload: &T,
     ) -> Result<EthSig, Self::Error> {
-        let digest =
-            payload.encode_eip712().map_err(|e| Self::Error::Eip712Error(e.to_string()))?;
-        let message_hash = H256::from(digest);
-        // FIXME: we can't use the actual eth_signTypedData because we aren't passed the right type
-        let raw_sig = self.server.sign_message(message_hash).await?;
-        let sig = EthSig::from_str(&raw_sig)?;
-        Ok(sig)
+        Err(BrowserSignerError::Other(
+            "sign_typed_data is not supported, use sign_typed_data_raw instead".to_owned(),
+        ))
     }
 
     fn address(&self) -> Address {
@@ -178,10 +196,8 @@ impl Signer for BrowserSigner {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    #[cfg_attr(not(feature = "browser"), ignore)]
-    async fn it_signs_messages() {
-        let signer = BrowserSigner::new_with_options(
+    async fn test_signer() -> BrowserSigner {
+        BrowserSigner::new_with_options(
             1,
             BrowserOptions {
                 open_browser: false,
@@ -189,12 +205,18 @@ mod tests {
             },
         )
         .await
-        .unwrap();
+        .unwrap()
+    }
+
+    #[tokio::test]
+    #[cfg_attr(not(feature = "browser"), ignore)]
+    async fn it_signs_text_messages() {
+        let signer = test_signer().await;
 
         println!("url: {}", signer.url());
         println!("address: {}", signer.address());
 
-        let message = vec![0, 1, 2, 3];
+        let message = "hello world".as_bytes();
 
         let sig = signer.sign_message(&message).await.unwrap();
         sig.verify(message, signer.address()).expect("valid sig");

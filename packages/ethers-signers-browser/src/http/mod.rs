@@ -1,4 +1,4 @@
-use actix::{Actor, Addr, MailboxError};
+use actix::{Actor, Addr};
 use actix_web::{dev::ServerHandle, rt, web, App, HttpServer};
 use ethers::core::{
     abi::Address,
@@ -62,18 +62,10 @@ async fn run_app(
 // add error
 #[derive(thiserror::Error, Debug)]
 pub enum ServerError {
-    #[error("recv error: {0}")]
-    Recv(#[from] mpsc::RecvError),
     #[error("comm error: {0}")]
     Comm(String),
     #[error("client error: {0}")]
     Client(String),
-}
-
-impl From<MailboxError> for ServerError {
-    fn from(err: MailboxError) -> Self {
-        Self::Comm(err.to_string())
-    }
 }
 
 pub struct ServerOptions {
@@ -106,7 +98,9 @@ impl Server {
             });
         }
 
-        let data = receiver.recv()?;
+        let data = receiver
+            .recv()
+            .map_err(|_: mpsc::RecvError| ServerError::Comm("internal error (init)".to_owned()))?;
 
         Ok(Self {
             port: data.port,
@@ -137,9 +131,29 @@ impl Server {
         .await
     }
 
-    pub async fn sign_message(&self, message: H256) -> Result<String, ServerError> {
+    pub async fn sign_text_message(
+        &self,
+        address: Address,
+        message: String,
+    ) -> Result<String, ServerError> {
         self.wait_for_reply(
-            comm::AsyncRequestContent::SignMessage { message },
+            comm::AsyncRequestContent::SignTextMessage { address, message },
+            |res| match res {
+                comm::AsyncResponseContent::Signature { signature } => Some(signature.clone()),
+                _ => None,
+            },
+            TIMEOUT,
+        )
+        .await
+    }
+
+    pub async fn sign_binary_message(
+        &self,
+        address: Address,
+        message: H256,
+    ) -> Result<String, ServerError> {
+        self.wait_for_reply(
+            comm::AsyncRequestContent::SignBinaryMessage { address, message },
             |res| match res {
                 comm::AsyncResponseContent::Signature { signature } => Some(signature.clone()),
                 _ => None,
@@ -164,9 +178,13 @@ impl Server {
         .await
     }
 
-    pub async fn sign_typed_data(&self, typed_data: TypedData) -> Result<String, ServerError> {
+    pub async fn sign_typed_data(
+        &self,
+        address: Address,
+        typed_data: TypedData,
+    ) -> Result<String, ServerError> {
         self.wait_for_reply(
-            comm::AsyncRequestContent::SignTypedData { typed_data },
+            comm::AsyncRequestContent::SignTypedData { address, typed_data },
             |res| match res {
                 comm::AsyncResponseContent::Signature { signature } => Some(signature.clone()),
                 _ => None,
@@ -190,7 +208,10 @@ impl Server {
         // TODO: should be wrapped in a mutex
         let id = self.gen_id();
         let req: comm::AsyncRequest = comm::AsyncRequest { id: id.clone(), content: req_content };
-        self.comm.send(req).await?;
+        self.comm
+            .send(req)
+            .await
+            .map_err(|_| ServerError::Comm("internal error (comm)".to_owned()))?;
 
         // one request at a time
         let receiver = self.comm_receiver.lock().expect("poisoned mutex");
@@ -215,7 +236,7 @@ impl Server {
                 }
                 Err(mpsc::TryRecvError::Empty) => (),
                 Err(mpsc::TryRecvError::Disconnected) => {
-                    return Err(ServerError::Comm("internal error".to_string()))
+                    return Err(ServerError::Comm("internal error (disc)".to_string()))
                 }
             }
             sleep(Duration::from_millis(100));

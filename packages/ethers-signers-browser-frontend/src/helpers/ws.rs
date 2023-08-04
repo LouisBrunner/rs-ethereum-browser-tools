@@ -1,5 +1,5 @@
 use crate::{
-    console::{console_error, console_log},
+    console::console_error,
     ws::{messages, WebsocketEvent, WebsocketService, WebsocketStatus},
 };
 use std::sync::{Arc, Mutex};
@@ -144,7 +144,6 @@ pub(crate) fn use_ws(on_message: Option<MessageCallback>) -> WSState {
                         match status {
                             WebsocketStatus::Disconnected(_) => {
                                 let callback = Closure::<dyn Fn()>::new(move || {
-                                    console_log!("recreating websocket");
                                     recreate.set(*recreate + 1);
                                 });
                                 match window() {

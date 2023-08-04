@@ -2,6 +2,7 @@ use crate::errors::console_error;
 use js_sys::{Function, Object};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt;
 use std::vec::Vec;
 use wasm_bindgen::{closure::Closure, prelude::*, JsValue};
 use wasm_bindgen_futures::spawn_local;
@@ -22,7 +23,8 @@ pub struct RequestMethod<T> {
     pub params: Option<RequestMethodParams<T>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(untagged)]
 #[repr(i64)]
 pub enum ErrorCodes {
     UserRejectedRequest = 4001,
@@ -33,10 +35,17 @@ pub enum ErrorCodes {
     Other(i64),
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct RPCError {
     pub code: ErrorCodes,
+    pub message: String,
     pub data: Option<Value>,
+}
+
+impl fmt::Display for RPCError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "error {:?}: {}", self.code, self.message)
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -84,8 +93,8 @@ pub enum Event {
 
 #[derive(thiserror::Error, Debug, Clone, PartialEq)]
 pub enum ProviderError {
-    #[error("js error: {0}")]
-    JS(String),
+    #[error("rcp error: {0}")]
+    RPC(RPCError),
     #[error("deserialize error: {0}")]
     Deserialize(String),
     #[error("unsupported: {0}")]
@@ -94,7 +103,7 @@ pub enum ProviderError {
 
 impl From<JsValue> for ProviderError {
     fn from(js: JsValue) -> Self {
-        Self::JS(format!("{:?}", js))
+        Self::Unsupported(format!("unsupported JS call: {:?}", js))
     }
 }
 
@@ -283,7 +292,12 @@ impl Provider {
         let promise = self
             .request
             .call1(&self.this, &serde_wasm_bindgen::to_value(&RequestMethod { method, params })?)?;
-        Ok(wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise)).await?)
+        wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise)).await.map_err(|e| {
+            match serde_wasm_bindgen::from_value(e) {
+                Ok(err) => ProviderError::RPC(err),
+                Err(err) => ProviderError::Deserialize(err.to_string()),
+            }
+        })
     }
 
     pub fn request_sync<T>(

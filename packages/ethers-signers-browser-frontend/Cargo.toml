@@ -30,7 +30,7 @@ futures-channel = "0.3.28"
 getrandom = { version = "0.2", features = ["js"] }
 gloo-utils = "0.1.2"
 js-sys.workspace = true
-rand = "0.8"
+rand.workspace = true
 reqwasm = "0.4.1"
 serde.workspace = true
 serde-wasm-bindgen.workspace = true

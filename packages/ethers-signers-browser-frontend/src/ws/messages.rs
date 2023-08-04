@@ -17,6 +17,7 @@ pub struct Request {
 #[serde(tag = "type", content = "message")]
 pub enum RequestContent {
     Init { chain_id: u64 },
+    Accounts {},
     SignMessage { message: H256 },
     SignTransaction { transaction: TypedTransaction },
     SignTypedData { typed_data: TypedData },
@@ -31,7 +32,8 @@ pub struct Response {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", content = "message")]
 pub enum ResponseContent {
-    Init { addresses: Vec<Address> },
+    Init {},
+    Accounts { addresses: Vec<Address> },
     Signature { signature: String },
     Error { error: String },
 }

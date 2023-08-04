@@ -4,6 +4,7 @@ use actix_web::{web, Error, HttpRequest, HttpResponse, Responder};
 use actix_web_actors::ws;
 use mime_guess::from_path;
 use rust_embed::RustEmbed;
+use serde::Deserialize;
 
 #[derive(RustEmbed)]
 #[folder = "$OUT_DIR/frontend"]
@@ -18,8 +19,19 @@ fn handle_embedded_file(path: &str) -> HttpResponse {
     }
 }
 
+#[derive(Deserialize)]
+pub(super) struct IndexQuery {
+    nonce: String,
+}
+
 #[actix_web::get("/")]
-pub(super) async fn index() -> impl Responder {
+pub(super) async fn index(
+    info: web::Query<IndexQuery>,
+    nonce: web::Data<String>,
+) -> impl Responder {
+    if info.nonce != **nonce {
+        return HttpResponse::NotFound().body("404 Not Found");
+    }
     handle_embedded_file("index.html")
 }
 

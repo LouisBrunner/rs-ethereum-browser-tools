@@ -17,9 +17,9 @@ pub(crate) fn get_status(ws: WSState) -> String {
                 WebsocketStatus::Disconnected(_e) => {
                     format!("disconnected, check that the command is still running")
                 }
-                WebsocketStatus::Error(e) => format!("error ({:?})", e),
+                WebsocketStatus::Error(e) => format!("error ({})", e),
             },
-            Err(e) => format!("error ({:?})", e),
+            Err(e) => format!("error ({})", e),
         },
     }
 }
@@ -33,7 +33,7 @@ fn create_ws() -> Result<WebsocketService, String> {
     };
     match WebsocketService::new(format!("{}/ws/", host), secure) {
         Ok(ws) => Ok(ws),
-        Err(e) => Err(format!("{:?}", e)),
+        Err(e) => Err(format!("{}", e)),
     }
 }
 

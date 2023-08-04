@@ -37,6 +37,12 @@ async fn call_provider(
                     )
                     .await?;
             }
+            Ok(ws::messages::Response {
+                id: request.id,
+                content: ws::messages::ResponseContent::Init {},
+            })
+        }
+        ws::messages::RequestContent::Accounts {} => {
             let v = provider.clone().request::<()>("eth_requestAccounts".to_string(), None).await?;
             let accounts = Array::from(&v)
                 .to_vec()
@@ -60,12 +66,12 @@ async fn call_provider(
                 .collect();
             Ok(ws::messages::Response {
                 id: request.id,
-                content: ws::messages::ResponseContent::Init { addresses: accounts },
+                content: ws::messages::ResponseContent::Accounts { addresses: accounts },
             })
         }
         ws::messages::RequestContent::SignMessage { message } => {
             console_log!("message: {}", message);
-            Err(ProviderError::Unsupported("sign message".to_string()))
+            Err(ProviderError::Unsupported("sign message5".to_string()))
         }
         ws::messages::RequestContent::SignTransaction { transaction } => {
             console_log!("transaction: {:?}", transaction);
@@ -97,7 +103,7 @@ fn handle_request(
                         Err(e) => ws::messages::Response {
                             id: request.id,
                             content: ws::messages::ResponseContent::Error {
-                                error: format!("{:?}", e),
+                                error: format!("{}", e),
                             },
                         },
                     })

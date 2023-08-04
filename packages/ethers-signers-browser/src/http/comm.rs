@@ -6,251 +6,280 @@ use ethers::core::{
         H256,
     },
 };
+use rand::distributions::{Alphanumeric, DistString};
 use std::sync::mpsc;
 
-/// Server sends this messages to session
+/// Comm sends this message to sessions
 #[derive(Clone, Message)]
 #[rtype(result = "()")]
-pub(super) enum WSMessage {
-    Init { chain_id: u64 },
+pub(super) enum WSRequest {
+    Init { id: String, chain_id: u64 },
+    Accounts { id: String },
+    SignMessage { id: String, message: H256 },
+    SignTransaction { id: String, transaction: TypedTransaction },
+    SignTypedData { id: String, typed_data: TypedData },
+    Close { reason: String },
+}
+
+type WebsocketClient = Recipient<WSRequest>;
+
+/// Sessions send this message to comm
+#[derive(Clone, Message)]
+#[rtype(result = "()")]
+pub(super) enum WSReply {
+    Connect { client: WebsocketClient },
+    Init { id: String, client: WebsocketClient },
+    Accounts { id: String, client: WebsocketClient, accounts: Vec<Address> },
+    Signature { id: String, client: WebsocketClient, signature: String },
+    Error { id: String, client: WebsocketClient, error: String },
+    Disconnect { client: WebsocketClient },
+}
+
+/// Server sends this message to comm
+#[derive(Clone, Message, Debug)]
+#[rtype(result = "()")]
+pub(super) struct AsyncRequest {
+    pub id: String,
+    pub content: AsyncRequestContent,
+}
+
+#[derive(Clone, Debug)]
+pub(super) enum AsyncRequestContent {
+    Accounts {},
     SignMessage { message: H256 },
     SignTransaction { transaction: TypedTransaction },
     SignTypedData { typed_data: TypedData },
 }
 
-type WebsocketClient = Recipient<WSMessage>;
-
-/// Message for server communications
-
-/// New session is created
-#[derive(Clone, Message)]
-#[rtype(result = "()")]
-pub(super) struct Connect {
-    pub addr: WebsocketClient,
+/// Comm sends this message to the server
+#[derive(Clone, Debug)]
+pub(super) struct AsyncResponse {
+    pub id: String,
+    pub content: AsyncResponseContent,
 }
 
-/// Session is disconnected
-#[derive(Clone, Message)]
-#[rtype(result = "()")]
-pub(super) struct Disconnect {
-    pub addr: WebsocketClient,
-}
-
-/// Initialization request
-#[derive(Clone, Message)]
-#[rtype(result = "()")]
-pub(super) struct InitRequest {
-    pub chain_id: u64,
-}
-
-/// Initialization reply
-#[derive(Clone, Message)]
-#[rtype(result = "()")]
-pub(super) struct InitReply {
-    pub addr: WebsocketClient,
-    pub accounts: Vec<Address>,
-}
-
-/// Sign message request
-#[derive(Clone, Message)]
-#[rtype(result = "()")]
-pub(super) struct SignMessageRequest {
-    pub message: H256,
-}
-
-/// Sign typed data request
-#[derive(Clone, Message)]
-#[rtype(result = "()")]
-pub(super) struct SignTypedDataRequest {
-    pub typed_data: TypedData,
-}
-
-/// Sign message request
-#[derive(Clone, Message)]
-#[rtype(result = "()")]
-pub(super) struct SignTransactionRequest {
-    pub transaction: TypedTransaction,
-}
-
-/// Sign message reply
-#[derive(Clone, Message)]
-#[rtype(result = "()")]
-pub(super) struct SignatureReply {
-    pub addr: WebsocketClient,
-    pub signature: String,
-}
-
-/// Client error
-#[derive(Clone, Message)]
-#[rtype(result = "()")]
-pub(super) struct ErrorReply {
-    pub addr: WebsocketClient,
-    pub error: String,
-}
-
-#[derive(thiserror::Error, Debug)]
-pub(super) enum AsyncError {
-    #[error("no client connected")]
-    NoClient,
-    #[error("{0}")]
-    FromClient(String),
-}
-
-pub(super) enum AsyncResponse {
-    ClientConnected,
-    InitReply { accounts: Vec<Address> },
-    SignatureReply { signature: String },
-    Error(AsyncError),
+#[derive(Clone, Debug)]
+pub(super) enum AsyncResponseContent {
+    Accounts { accounts: Vec<Address> },
+    Signature { signature: String },
+    Error { error: String },
 }
 
 /// `CommServer` manages clients and forward server requests to them.
 #[derive(Debug)]
 pub(super) struct CommServer {
-    client: Option<WebsocketClient>,
     server: mpsc::Sender<AsyncResponse>,
+    chain_id: u64,
+    client: Option<WebsocketClient>,
+    init_status: InitStatus,
+    is_handling_request: bool,
+    pending_messages: Vec<AsyncRequest>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+enum InitStatus {
+    None,
+    Pending { id: String },
+    Done,
 }
 
 impl CommServer {
-    pub fn new(server: mpsc::Sender<AsyncResponse>) -> CommServer {
-        CommServer { client: None, server }
+    pub fn new(server: mpsc::Sender<AsyncResponse>, chain_id: u64) -> CommServer {
+        CommServer {
+            client: None,
+            server,
+            chain_id,
+            init_status: InitStatus::None,
+            is_handling_request: false,
+            pending_messages: vec![],
+        }
+    }
+
+    fn gen_id(&self) -> String {
+        Alphanumeric.sample_string(&mut rand::thread_rng(), 16)
     }
 }
 
-impl CommServer {}
+impl CommServer {
+    fn is_same_client(&self, addr: &WebsocketClient) -> bool {
+        match self.client {
+            Some(ref client) if client == addr => true,
+            _ => false,
+        }
+    }
+
+    fn is_client_init(&self) -> bool {
+        self.init_status == InitStatus::Done
+    }
+
+    fn has_ready_client(&self) -> bool {
+        self.client.is_some() && self.is_client_init()
+    }
+
+    fn kick_client(&self, client: &Recipient<WSRequest>, reason: &str) {
+        println!("kick client: {}", reason);
+        client.do_send(WSRequest::Close { reason: reason.to_string() });
+    }
+
+    fn kick_current_client(&mut self, reason: &str) {
+        if let Some(ref addr) = self.client {
+            self.kick_client(addr, reason);
+            self.cleanup_client();
+        }
+    }
+
+    fn cleanup_client(&mut self) {
+        self.client = None;
+        self.init_status = InitStatus::None;
+        self.is_handling_request = false;
+    }
+}
+
+impl CommServer {
+    fn send_pending_message(&mut self) {
+        if self.is_handling_request || !self.has_ready_client() {
+            return;
+        }
+        if let Some(msg) = self.pending_messages.first() {
+            self.is_handling_request = true;
+            self.client.as_ref().unwrap().do_send(match msg.clone() {
+                AsyncRequest { id, content } => match content {
+                    AsyncRequestContent::Accounts {} => WSRequest::Accounts { id },
+                    AsyncRequestContent::SignMessage { message } => {
+                        WSRequest::SignMessage { id, message }
+                    }
+                    AsyncRequestContent::SignTransaction { transaction } => {
+                        WSRequest::SignTransaction { id, transaction }
+                    }
+                    AsyncRequestContent::SignTypedData { typed_data } => {
+                        WSRequest::SignTypedData { id, typed_data }
+                    }
+                },
+            });
+        }
+    }
+
+    fn handle_init(&mut self, id: String) {
+        match self.init_status.clone() {
+            InitStatus::Pending { id: original_id } => {
+                if original_id != id {
+                    self.kick_current_client("invalid id on init");
+                    return;
+                }
+                self.init_status = InitStatus::Done;
+                self.send_pending_message();
+            }
+            _ => {
+                self.kick_current_client("init already done");
+                return;
+            }
+        }
+    }
+
+    fn handle_response(&mut self, id: String, content: AsyncResponseContent) {
+        if !self.is_client_init() {
+            match self.init_status.clone() {
+                InitStatus::Pending { id: original_id } => {
+                    if original_id != id {
+                        self.kick_current_client("invalid id on init");
+                        return;
+                    }
+                    self.kick_current_client(format!("failed init: {:?}", content).as_str());
+                }
+                _ => {
+                    self.kick_current_client("wrong init status");
+                }
+            }
+            return;
+        }
+
+        if let Some(msg) = self.pending_messages.first() {
+            if msg.id != id {
+                print!("invalid response id ({} vs {}), ignore and send the next one", msg.id, id);
+            } else {
+                self.pending_messages.remove(0);
+                match self.server.send(AsyncResponse { id, content }) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!("failed to send response to server: {:?}", e);
+                    }
+                }
+            }
+        } else {
+            print!("no pending message, ignore and send the next one");
+        }
+
+        self.is_handling_request = false;
+        self.send_pending_message();
+    }
+
+    fn queue_pending_message(&mut self, msg: AsyncRequest) {
+        self.pending_messages.push(msg);
+        self.send_pending_message();
+    }
+}
 
 impl Actor for CommServer {
     type Context = Context<Self>;
 }
 
 // from client
-impl Handler<Connect> for CommServer {
+impl Handler<WSReply> for CommServer {
     type Result = ();
 
-    fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        println!("Browser connected");
-        self.client = Some(msg.addr);
-        // FIXME: how to handle error?
-        let _ = self.server.send(AsyncResponse::ClientConnected);
-    }
-}
-
-impl Handler<Disconnect> for CommServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        println!("Browser disconnected");
-        match self.client {
-            Some(ref addr) if addr == &msg.addr => {
-                self.client = None;
+    fn handle(&mut self, msg: WSReply, _: &mut Context<Self>) -> Self::Result {
+        match msg {
+            WSReply::Connect { client } => {
+                println!("Browser connected");
+                self.client = Some(client.clone());
+                let id = self.gen_id();
+                self.init_status = InitStatus::Pending { id: id.clone() };
+                client.do_send(WSRequest::Init { id, chain_id: self.chain_id });
             }
-            _ => (),
-        }
-    }
-}
-
-impl Handler<InitReply> for CommServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: InitReply, _: &mut Context<Self>) {
-        match self.client {
-            Some(ref addr) if addr == &msg.addr => {
-                // FIXME: how to handle error?
-                let _ = self.server.send(AsyncResponse::InitReply { accounts: msg.accounts });
+            WSReply::Disconnect { client } => {
+                println!("Browser disconnected");
+                if !self.is_same_client(&client) {
+                    return;
+                }
+                self.cleanup_client();
             }
-            _ => (),
-        }
-    }
-}
-
-impl Handler<SignatureReply> for CommServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: SignatureReply, _: &mut Context<Self>) {
-        match self.client {
-            Some(ref addr) if addr == &msg.addr => {
-                // FIXME: how to handle error?
-                let _ =
-                    self.server.send(AsyncResponse::SignatureReply { signature: msg.signature });
+            WSReply::Init { id, client } => {
+                if !self.is_same_client(&client) {
+                    self.kick_client(&client, "invalid client");
+                    return;
+                }
+                self.handle_init(id);
             }
-            _ => (),
-        }
-    }
-}
-
-impl Handler<ErrorReply> for CommServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: ErrorReply, _: &mut Context<Self>) {
-        match self.client {
-            Some(ref addr) if addr == &msg.addr => {
-                let _ = self.server.send(AsyncResponse::Error(AsyncError::FromClient(msg.error)));
+            WSReply::Accounts { id, client, accounts } => {
+                if !self.is_same_client(&client) {
+                    self.kick_client(&client, "invalid client");
+                    return;
+                }
+                self.handle_response(id, AsyncResponseContent::Accounts { accounts });
             }
-            _ => (),
+            WSReply::Signature { id, client, signature } => {
+                if !self.is_same_client(&client) {
+                    self.kick_client(&client, "invalid client");
+                    return;
+                }
+                self.handle_response(id, AsyncResponseContent::Signature { signature });
+            }
+            WSReply::Error { id, client, error } => {
+                if !self.is_same_client(&client) {
+                    self.kick_client(&client, "invalid client");
+                    return;
+                }
+                self.handle_response(id, AsyncResponseContent::Error { error });
+            }
         }
     }
 }
 
 // from server
-impl Handler<InitRequest> for CommServer {
+impl Handler<AsyncRequest> for CommServer {
     type Result = ();
 
-    fn handle(&mut self, msg: InitRequest, _: &mut Context<Self>) {
-        match self.client {
-            Some(ref addr) => {
-                addr.do_send(WSMessage::Init { chain_id: msg.chain_id });
-            }
-            None => {
-                // FIXME: how to handle error?
-                let _ = self.server.send(AsyncResponse::Error(AsyncError::NoClient));
-            }
-        }
-    }
-}
-
-impl Handler<SignMessageRequest> for CommServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: SignMessageRequest, _: &mut Context<Self>) {
-        match self.client {
-            Some(ref addr) => {
-                addr.do_send(WSMessage::SignMessage { message: msg.message });
-            }
-            None => {
-                // FIXME: how to handle error?
-                let _ = self.server.send(AsyncResponse::Error(AsyncError::NoClient));
-            }
-        }
-    }
-}
-
-impl Handler<SignTransactionRequest> for CommServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: SignTransactionRequest, _: &mut Context<Self>) {
-        match self.client {
-            Some(ref addr) => {
-                addr.do_send(WSMessage::SignTransaction { transaction: msg.transaction });
-            }
-            None => {
-                // FIXME: how to handle error?
-                let _ = self.server.send(AsyncResponse::Error(AsyncError::NoClient));
-            }
-        }
-    }
-}
-
-impl Handler<SignTypedDataRequest> for CommServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: SignTypedDataRequest, _: &mut Context<Self>) {
-        match self.client {
-            Some(ref addr) => {
-                addr.do_send(WSMessage::SignTypedData { typed_data: msg.typed_data });
-            }
-            None => {
-                // FIXME: how to handle error?
-                let _ = self.server.send(AsyncResponse::Error(AsyncError::NoClient));
-            }
-        }
+    fn handle(&mut self, msg: AsyncRequest, _: &mut Context<Self>) {
+        self.queue_pending_message(msg);
     }
 }

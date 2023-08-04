@@ -14,7 +14,6 @@ pub(crate) fn get_name(status: &ProviderStatus) -> String {
 }
 
 pub(crate) fn get_status(status: Option<Result<ProviderStatus, ProviderError>>) -> Html {
-    console_log!("get_status: {:?}", status); // TODO: remove
     {
         match status {
             Some(status) => match status {
@@ -22,7 +21,7 @@ pub(crate) fn get_status(status: Option<Result<ProviderStatus, ProviderError>>) 
                   <div>
                     <pre>{ format!("Wallet: {}", get_name(&status)) }</pre>
                     <pre>{ format!("Connected: {}", match status.connected {
-                      Some(status) => format!("{:?}", status),
+                      Some(status) => format!("{}", status),
                       None => "unknown".to_owned(),
                     }) }</pre>
                     <pre>{ format!("Chain ID: {}", match status.chain_id {
@@ -35,7 +34,7 @@ pub(crate) fn get_status(status: Option<Result<ProviderStatus, ProviderError>>) 
                     }) }</pre>
                   </div>
                 },
-                Err(e) => html! { <pre>{ format!("Error: {:?}", e) }</pre> },
+                Err(e) => html! { <pre>{ format!("Error: {}", e) }</pre> },
             },
             None => html! { <pre>{ "Loading wallet provider..." }</pre> },
         }

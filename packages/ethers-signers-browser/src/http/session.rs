@@ -21,25 +21,28 @@ impl WSFlow {
         Self { comm, last_heartbeat: Instant::now() }
     }
 
-    fn forward_to_client(&self, msg: comm::WSMessage) -> SerdeResult<String> {
+    fn forward_to_client(&self, msg: comm::WSRequest) -> Result<SerdeResult<String>, String> {
         let msg = match msg {
-            comm::WSMessage::Init { chain_id } => {
-                Request { id: "unused".to_owned(), content: RequestContent::Init { chain_id } }
+            comm::WSRequest::Init { id, chain_id } => {
+                Request { id, content: RequestContent::Init { chain_id } }
             }
-            comm::WSMessage::SignMessage { message } => Request {
-                id: "unused".to_owned(),
-                content: RequestContent::SignMessage { message },
-            },
-            comm::WSMessage::SignTransaction { transaction } => Request {
-                id: "unused".to_owned(),
-                content: RequestContent::SignTransaction { transaction },
-            },
-            comm::WSMessage::SignTypedData { typed_data } => Request {
-                id: "unused".to_owned(),
-                content: RequestContent::SignTypedData { typed_data },
-            },
+            comm::WSRequest::Accounts { id } => {
+                Request { id, content: RequestContent::Accounts {} }
+            }
+            comm::WSRequest::SignMessage { id, message } => {
+                Request { id, content: RequestContent::SignMessage { message } }
+            }
+            comm::WSRequest::SignTransaction { id, transaction } => {
+                Request { id, content: RequestContent::SignTransaction { transaction } }
+            }
+            comm::WSRequest::SignTypedData { id, typed_data } => {
+                Request { id, content: RequestContent::SignTypedData { typed_data } }
+            }
+            comm::WSRequest::Close { reason } => {
+                return Err(reason);
+            }
         };
-        serde_json::to_string(&msg)
+        Ok(serde_json::to_string(&msg))
     }
 
     fn forward_to_server(
@@ -50,14 +53,25 @@ impl WSFlow {
         let addr = ctx.address().recipient();
         let response: Response = serde_json::from_str(&text)?;
         match response.content {
-            ResponseContent::Init { addresses } => {
-                self.comm.do_send(comm::InitReply { addr, accounts: addresses });
+            ResponseContent::Init {} => {
+                self.comm.do_send(comm::WSReply::Init { id: response.id, client: addr });
+            }
+            ResponseContent::Accounts { addresses } => {
+                self.comm.do_send(comm::WSReply::Accounts {
+                    id: response.id,
+                    client: addr,
+                    accounts: addresses,
+                });
             }
             ResponseContent::Signature { signature } => {
-                self.comm.do_send(comm::SignatureReply { addr, signature });
+                self.comm.do_send(comm::WSReply::Signature {
+                    id: response.id,
+                    client: addr,
+                    signature,
+                });
             }
             ResponseContent::Error { error } => {
-                self.comm.do_send(comm::ErrorReply { addr, error });
+                self.comm.do_send(comm::WSReply::Error { id: response.id, client: addr, error });
             }
         };
         Ok(())
@@ -67,11 +81,25 @@ impl WSFlow {
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
             if Instant::now().duration_since(act.last_heartbeat) > CLIENT_TIMEOUT {
                 ctx.stop();
-                return
+                return;
             }
 
             ctx.ping(b"");
         });
+    }
+
+    fn close(
+        &self,
+        ctx: &mut <Self as Actor>::Context,
+        reason: String,
+        user_reason: Option<String>,
+    ) {
+        println!("Closing websocket: {}", reason);
+        ctx.close(Some(ws::CloseReason {
+            code: ws::CloseCode::Error,
+            description: Some(user_reason.unwrap_or(reason)),
+        }));
+        ctx.stop();
     }
 }
 
@@ -82,26 +110,36 @@ impl Actor for WSFlow {
         self.heartbeat(ctx);
 
         let addr = ctx.address().recipient();
-        self.comm.do_send(comm::Connect { addr });
+        self.comm.do_send(comm::WSReply::Connect { client: addr });
     }
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
         let addr = ctx.address().recipient();
-        self.comm.do_send(comm::Disconnect { addr });
+        self.comm.do_send(comm::WSReply::Disconnect { client: addr });
         Running::Stop
     }
 }
 
 // Comm -> Websocket
-impl Handler<comm::WSMessage> for WSFlow {
+impl Handler<comm::WSRequest> for WSFlow {
     type Result = ();
 
-    fn handle(&mut self, msg: comm::WSMessage, ctx: &mut Self::Context) {
+    fn handle(&mut self, msg: comm::WSRequest, ctx: &mut Self::Context) {
         match self.forward_to_client(msg) {
-            Ok(text) => ctx.text(text),
-            Err(e) => {
-                println!("Error forwarding message: {}", e);
-                ctx.stop();
+            Ok(text) => match text {
+                Ok(text) => {
+                    ctx.text(text);
+                }
+                Err(e) => {
+                    self.close(
+                        ctx,
+                        format!("error forwarding message: {}", e),
+                        Some("internal error".to_owned()),
+                    );
+                }
+            },
+            Err(msg) => {
+                self.close(ctx, msg, None);
             }
         }
     }
@@ -122,17 +160,24 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WSFlow {
                 match self.forward_to_server(ctx, text) {
                     Ok(_) => (),
                     Err(e) => {
-                        println!("Error forwarding message: {}", e);
-                        ctx.stop();
+                        self.close(
+                            ctx,
+                            format!("error forwarding message: {}", e),
+                            Some("internal error".to_owned()),
+                        );
                     }
                 };
             }
             Ok(ws::Message::Close(reason)) => {
-                ctx.close(reason);
+                println!("WS Closed: {:?}", reason);
                 ctx.stop();
             }
-            Err(e) => println!("WS Error: {}", e),
-            _ => ctx.stop(),
+            Err(e) => {
+                println!("WS Error: {}", e);
+            }
+            _ => {
+                self.close(ctx, "unsupported message received".to_owned(), None);
+            }
         }
     }
 }

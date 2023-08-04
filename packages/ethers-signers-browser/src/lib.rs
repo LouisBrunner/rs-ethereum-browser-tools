@@ -9,6 +9,7 @@ use ethers::core::{
     utils::hash_message,
 };
 pub use ethers::signers::Signer;
+use http::ServerOptions;
 use std::str::FromStr;
 use tracing::{instrument, trace};
 
@@ -34,6 +35,7 @@ pub struct BrowserSigner {
     chain_id: u64,
     server: http::Server,
     addresses: Vec<Address>,
+    url: String,
 }
 
 impl std::fmt::Debug for BrowserSigner {
@@ -72,11 +74,13 @@ impl From<String> for BrowserSignerError {
     }
 }
 
-fn prompt_user(server: &http::Server) -> Result<(), BrowserSignerError> {
-    let url = format!("http://localhost:{}", server.port());
-    println!("Please open your browser at {} and connect your wallet", url);
-    webbrowser::open(&url)?;
-    Ok(())
+fn prompt_user(url: String) -> Result<(), BrowserSignerError> {
+    Ok(webbrowser::open(&url)?)
+}
+
+pub struct BrowserOptions {
+    pub open_browser: bool,
+    pub server: Option<ServerOptions>,
 }
 
 impl BrowserSigner {
@@ -85,13 +89,31 @@ impl BrowserSigner {
     /// This function retrieves the public addresses from the browser. It is therefore `async`.
     #[instrument(err, skip(chain_id))]
     pub async fn new(chain_id: u64) -> Result<BrowserSigner, BrowserSignerError> {
-        let server = http::Server::new().await?;
-        prompt_user(&server)?;
-        let addresses = server.get_user_addresses(chain_id).await?;
+        Self::new_with_options(chain_id, BrowserOptions { open_browser: true, server: None }).await
+    }
+
+    pub async fn new_with_options(
+        chain_id: u64,
+        opts: BrowserOptions,
+    ) -> Result<BrowserSigner, BrowserSignerError> {
+        let server = http::Server::new(chain_id, opts.server).await?;
+
+        let url = format!("http://localhost:{}?nonce={}", server.port(), server.nonce());
+        println!("Please open your browser at {} and connect your wallet", url);
+        if opts.open_browser {
+            prompt_user(url.clone())?;
+        }
+
+        let addresses = server.get_user_addresses().await?;
         if addresses.is_empty() {
             return Err(BrowserSignerError::Other("no addresses found in browser".to_owned()));
         }
-        Ok(Self { chain_id, server, addresses })
+
+        Ok(Self { chain_id, server, addresses, url })
+    }
+
+    pub fn url(&self) -> String {
+        self.url.clone()
     }
 }
 
@@ -159,9 +181,17 @@ mod tests {
     #[tokio::test]
     #[cfg_attr(not(feature = "browser"), ignore)]
     async fn it_signs_messages() {
-        let chain_id = 1;
-        let signer = BrowserSigner::new(chain_id).await.unwrap();
+        let signer = BrowserSigner::new_with_options(
+            1,
+            BrowserOptions {
+                open_browser: false,
+                server: Some(ServerOptions { port: Some(7777), nonce: Some("123".to_owned()) }),
+            },
+        )
+        .await
+        .unwrap();
 
+        println!("url: {}", signer.url());
         println!("address: {}", signer.address());
 
         let message = vec![0, 1, 2, 3];

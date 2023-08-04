@@ -5,7 +5,7 @@ This repository contains a collection of tools for interacting with Ethereum-bas
 ## Packages
 
 - [`ethers-signers-browser`](packages/ethers-signers-browser/): implement a [`ethers-signers`](https://github.com/gakonst/ethers-rs)-compatible `Signer` which uses the browser's `window.ethereum` object to sign transactions, allowing you to use your Coinbase Wallet, MetaMask, or other browser-based Ethereum wallet from the comfort of the CLI.
-- [`ethereum-provider`](packages/rust-ethereum-provider/): implement a `Provider` which wraps the browser's `window.ethereum` for use in Rust, which is useful for wasm-based projects (e.g. front-ends).
+- [`ethereum-provider`](packages/ethereum-provider/): implement a `Provider` which wraps the browser's `window.ethereum` for use in Rust, which is useful for wasm-based projects (e.g. front-ends).
 
 ## Credits
 

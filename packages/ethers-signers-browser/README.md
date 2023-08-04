@@ -1,4 +1,4 @@
-<p align="center"><img width=100 src="https://github.com/LouisBrunner/rs-ethereum-browser-tools/blob/main/packages/ethers-signers-browser-frontend/static/logo.png" /></p>
+<p align="center"><img width=100 src="https://raw.githubusercontent.com/LouisBrunner/rs-ethereum-browser-tools/main/packages/ethers-signers-browser-frontend/static/logo.png" /></p>
 <h1 align="center">ethers-signers-browser</h1>
 
 A [`ethers-signers`](https://github.com/gakonst/ethers-rs)-compatible `Signer` which uses the browser's `window.ethereum` object to sign transactions, allowing you to use your Coinbase Wallet, MetaMask, or other browser-based Ethereum wallet from the comfort of the CLI.
@@ -61,12 +61,12 @@ When the `BrowserSigner` is created, your browser will open a page and prompt yo
 
 You will then see the following page:
 
-![Homepage of the signer displaying some metadata](https://github.com/LouisBrunner/rs-ethereum-browser-tools/blob/main/packages/ethers-signers-browser/docs/0_homepage.png)
+![Homepage of the signer displaying some metadata](https://raw.githubusercontent.com/LouisBrunner/rs-ethereum-browser-tools/main/packages/ethers-signers-browser/docs/0_homepage.png)
 
 And, probably at the same time, a popup from your wallet:
 
-![CoinBase Wallet popup to unlock your wallet](https://github.com/LouisBrunner/rs-ethereum-browser-tools/blob/main/packages/ethers-signers-browser/docs/1_connection.png)
+![CoinBase Wallet popup to unlock your wallet](https://raw.githubusercontent.com/LouisBrunner/rs-ethereum-browser-tools/main/packages/ethers-signers-browser/docs/1_connection.png)
 
 Once you have unlocked your wallet, your code will continue to run until it reaches `sign_message`, after which you will be prompted to sign the message:
 
-![CoinBase Wallet popup to sign the message](https://github.com/LouisBrunner/rs-ethereum-browser-tools/blob/main/packages/ethers-signers-browser/docs/2_signing.png)
+![CoinBase Wallet popup to sign the message](https://raw.githubusercontent.com/LouisBrunner/rs-ethereum-browser-tools/main/packages/ethers-signers-browser/docs/2_signing.png)

@@ -6,6 +6,7 @@ use ethers::core::{
         H256,
     },
 };
+use log::{error, info, warn};
 use rand::distributions::{Alphanumeric, DistString};
 use std::sync::mpsc;
 
@@ -119,7 +120,7 @@ impl CommServer {
     }
 
     fn kick_client(&self, client: &Recipient<WSRequest>, reason: &str) {
-        println!("kick client: {}", reason);
+        warn!("kicking client: {}", reason);
         client.do_send(WSRequest::Close { reason: reason.to_string() });
     }
 
@@ -206,7 +207,7 @@ impl CommServer {
                 match self.server.send(AsyncResponse { id, content }) {
                     Ok(_) => {}
                     Err(e) => {
-                        println!("failed to send response to server: {:?}", e);
+                        error!("failed to send response to server: {:?}", e);
                     }
                 }
             }
@@ -235,14 +236,14 @@ impl Handler<WSReply> for CommServer {
     fn handle(&mut self, msg: WSReply, _: &mut Context<Self>) -> Self::Result {
         match msg {
             WSReply::Connect { client } => {
-                println!("Browser connected");
+                info!("Browser connected");
                 self.client = Some(client.clone());
                 let id = self.gen_id();
                 self.init_status = InitStatus::Pending { id: id.clone() };
                 client.do_send(WSRequest::Init { id, chain_id: self.chain_id });
             }
             WSReply::Disconnect { client } => {
-                println!("Browser disconnected");
+                info!("Browser disconnected");
                 if !self.is_same_client(&client) {
                     return;
                 }

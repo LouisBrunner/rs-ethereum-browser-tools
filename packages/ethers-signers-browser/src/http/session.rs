@@ -5,6 +5,7 @@ use bytestring::ByteString;
 use ethers_signers_browser_frontend::ws::messages::{
     Request, RequestContent, Response, ResponseContent,
 };
+use log::{error, warn};
 use serde_json::Result as SerdeResult;
 use std::time::{Duration, Instant};
 
@@ -97,7 +98,7 @@ impl WSFlow {
         reason: String,
         user_reason: Option<String>,
     ) {
-        println!("Closing websocket: {}", reason);
+        error!("closing websocket: {}", reason);
         ctx.close(Some(ws::CloseReason {
             code: ws::CloseCode::Error,
             description: Some(user_reason.unwrap_or(reason)),
@@ -172,11 +173,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WSFlow {
                 };
             }
             Ok(ws::Message::Close(reason)) => {
-                println!("WS Closed: {:?}", reason);
+                warn!("WS Closed: {:?}", reason);
                 ctx.stop();
             }
             Err(e) => {
-                println!("WS Error: {}", e);
+                error!("WS Error: {}", e);
             }
             _ => {
                 self.close(ctx, "unsupported message received".to_owned(), None);

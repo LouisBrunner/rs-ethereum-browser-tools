@@ -11,6 +11,7 @@ use ethers::{
     utils::hash_message,
 };
 use http::ServerOptions;
+use log::info;
 use std::str::FromStr;
 use tracing::{instrument, trace};
 
@@ -100,7 +101,7 @@ impl BrowserSigner {
         let server = http::Server::new(chain_id, opts.server).await?;
 
         let url = format!("http://localhost:{}?nonce={}", server.port(), server.nonce());
-        println!("Please open your browser at {} and connect your wallet", url);
+        info!("Please open your browser at {} and connect your wallet", url);
         if opts.open_browser {
             prompt_user(url.clone())?;
         }
@@ -213,8 +214,7 @@ mod tests {
     async fn it_signs_text_messages() {
         let signer = test_signer().await;
 
-        println!("url: {}", signer.url());
-        println!("address: {}", signer.address());
+        println!("address: {:x}", signer.address());
 
         let message = "hello world".as_bytes();
 

@@ -182,6 +182,15 @@ impl CommServer {
         }
     }
 
+    fn send_server_reply(&mut self, reply: AsyncResponse) {
+        match self.server.send(reply) {
+            Ok(_) => {}
+            Err(e) => {
+                error!("failed to send response to server: {:?}", e);
+            }
+        }
+    }
+
     fn handle_response(&mut self, id: String, content: AsyncResponseContent) {
         if !self.is_client_init() {
             match self.init_status.clone() {
@@ -189,6 +198,17 @@ impl CommServer {
                     if original_id != id {
                         self.kick_current_client("invalid id on init");
                         return
+                    }
+                    if let AsyncResponseContent::Error { .. } = content {
+                        if let Some(msg) = self.pending_messages.first() {
+                            // Basically we cheat a little bit to be able to send the error message
+                            // to the server despite init being sort of
+                            // implicit
+                            self.send_server_reply(AsyncResponse {
+                                id: msg.id.clone(),
+                                content: content.clone(),
+                            });
+                        }
                     }
                     self.kick_current_client(format!("failed init: {:?}", content).as_str());
                 }
@@ -204,12 +224,7 @@ impl CommServer {
                 print!("invalid response id ({} vs {}), ignore and send the next one", msg.id, id);
             } else {
                 self.pending_messages.remove(0);
-                match self.server.send(AsyncResponse { id, content }) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!("failed to send response to server: {:?}", e);
-                    }
-                }
+                self.send_server_reply(AsyncResponse { id, content });
             }
         } else {
             print!("no pending message, ignore and send the next one");

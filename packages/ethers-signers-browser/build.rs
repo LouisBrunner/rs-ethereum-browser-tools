@@ -1,6 +1,7 @@
 use std::path::Path;
 use trunk_build_time::{cmd::build::Build, config::ConfigOptsBuild};
 
+const FRONTEND_VERSION: &str = "0.1.1";
 const FRONTEND: &str = "../ethers-signers-browser-frontend";
 
 async fn build_frontend(path: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -31,11 +32,7 @@ async fn main() {
         Err(e) => {
             eprintln!("Failed to build frontend, fallback to versionned: {}", e);
             // FIXME: we shouldn't assume the frontend will have the same version
-            let frontend_vers = format!(
-                "{}-{}",
-                FRONTEND,
-                std::env::var("CARGO_PKG_VERSION").expect("CARGO_PKG_VERSION not set")
-            );
+            let frontend_vers = format!("{}-{}", FRONTEND, FRONTEND_VERSION);
             build_frontend(&frontend_vers).await.unwrap();
         }
         _ => {}

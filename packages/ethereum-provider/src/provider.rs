@@ -242,6 +242,7 @@ pub struct RequestMethod<T> {
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
+// TODO: this is not working
 #[serde(untagged)]
 #[repr(i64)]
 pub enum ErrorCodes {

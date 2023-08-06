@@ -10,7 +10,10 @@ use ethers::core::{
 use rand::distributions::{Alphanumeric, DistString};
 use routes::{dist, index, ws_open};
 use std::{
-    sync::{mpsc, Mutex},
+    sync::{
+        mpsc::{self, RecvError},
+        Mutex,
+    },
     thread::{self, sleep},
     time::{Duration, Instant},
 };
@@ -22,24 +25,22 @@ pub mod session;
 // FIXME: tweak those values
 static TIMEOUT: Duration = Duration::MAX;
 
+type ServerDataResult = Result<ServerData, String>;
+
 struct ServerData {
     port: u16,
     server: ServerHandle,
     comm: Addr<comm::CommServer>,
 }
 
-async fn run_app(
+async fn create_server(
     nonce: String,
-    comm: comm::CommServer,
-    sender: mpsc::Sender<ServerData>,
+    comm: Addr<comm::CommServer>,
     port: Option<u16>,
-) -> std::io::Result<()> {
-    let comm = comm.start();
-
-    let comm_data = comm.clone();
+) -> Result<(actix_web::dev::Server, u16), std::io::Error> {
     let server = HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(comm_data.clone()))
+            .app_data(web::Data::new(comm.clone()))
             .app_data(web::Data::new(nonce.clone()))
             .service(ws_open)
             .service(index)
@@ -49,23 +50,46 @@ async fn run_app(
 
     let addrs = server.addrs();
     let server = server.run();
+    Ok((server, addrs[0].port()))
+}
 
-    let _ = sender.send(ServerData {
-        port: addrs[0].port(),
-        server: server.handle(),
-        comm: comm.clone(),
-    });
+async fn run_server_and_comm(
+    nonce: String,
+    comm: comm::CommServer,
+    sender: mpsc::Sender<ServerDataResult>,
+    port: Option<u16>,
+) -> () {
+    let comm = comm.start();
+    let (server, data) = match create_server(nonce, comm.clone(), port).await {
+        Ok((server, port)) => {
+            let handle = server.handle();
+            (Some(server), Ok(ServerData { port, server: handle, comm }))
+        }
+        Err(e) => (None, Err(format!("error creating server: {}", e))),
+    };
 
-    server.await
+    let _ = sender.send(data);
+
+    if let Some(server) = server {
+        let _ = server.await;
+    }
 }
 
 // add error
 #[derive(thiserror::Error, Debug)]
 pub enum ServerError {
+    #[error("init error: {0}")]
+    Init(String),
     #[error("comm error: {0}")]
     Comm(String),
     #[error("client error: {0}")]
     Client(String),
+}
+
+impl From<RecvError> for ServerError {
+    fn from(_: RecvError) -> Self {
+        ServerError::Init("http server did not start".to_owned())
+    }
 }
 
 pub struct ServerOptions {
@@ -92,15 +116,17 @@ impl Server {
         {
             let nonce = nonce.clone();
             thread::spawn(move || {
-                let server_future =
-                    run_app(nonce, comm::CommServer::new(comm_sender, chain_id), sender, opts.port);
-                rt::System::new().block_on(server_future)
+                let fut = run_server_and_comm(
+                    nonce,
+                    comm::CommServer::new(comm_sender, chain_id),
+                    sender,
+                    opts.port,
+                );
+                rt::System::new().block_on(fut)
             });
         }
 
-        let data = receiver
-            .recv()
-            .map_err(|_: mpsc::RecvError| ServerError::Comm("internal error (init)".to_owned()))?;
+        let data = receiver.recv()?.map_err(|e| ServerError::Init(e))?;
 
         Ok(Self {
             port: data.port,
@@ -139,7 +165,9 @@ impl Server {
         self.wait_for_reply(
             comm::AsyncRequestContent::SignTextMessage { address, message },
             |res| match res {
-                comm::AsyncResponseContent::Signature { signature } => Some(signature.clone()),
+                comm::AsyncResponseContent::MessageSignature { signature } => {
+                    Some(signature.clone())
+                }
                 _ => None,
             },
             TIMEOUT,
@@ -155,7 +183,9 @@ impl Server {
         self.wait_for_reply(
             comm::AsyncRequestContent::SignBinaryMessage { address, message },
             |res| match res {
-                comm::AsyncResponseContent::Signature { signature } => Some(signature.clone()),
+                comm::AsyncResponseContent::MessageSignature { signature } => {
+                    Some(signature.clone())
+                }
                 _ => None,
             },
             TIMEOUT,
@@ -170,7 +200,9 @@ impl Server {
         self.wait_for_reply(
             comm::AsyncRequestContent::SignTransaction { transaction },
             |res| match res {
-                comm::AsyncResponseContent::Signature { signature } => Some(signature.clone()),
+                comm::AsyncResponseContent::TransactionSignature { signature } => {
+                    Some(signature.clone())
+                }
                 _ => None,
             },
             TIMEOUT,
@@ -186,17 +218,15 @@ impl Server {
         self.wait_for_reply(
             comm::AsyncRequestContent::SignTypedData { address, typed_data },
             |res| match res {
-                comm::AsyncResponseContent::Signature { signature } => Some(signature.clone()),
+                // FIXME: maybe it needs a different response type
+                comm::AsyncResponseContent::MessageSignature { signature } => {
+                    Some(signature.clone())
+                }
                 _ => None,
             },
             TIMEOUT,
         )
         .await
-    }
-
-    async fn stop(&self) -> Result<(), ServerError> {
-        self.server.stop(false).await;
-        Ok(())
     }
 
     async fn wait_for_reply<U>(
@@ -208,10 +238,7 @@ impl Server {
         // TODO: should be wrapped in a mutex
         let id = self.gen_id();
         let req: comm::AsyncRequest = comm::AsyncRequest { id: id.clone(), content: req_content };
-        self.comm
-            .send(req)
-            .await
-            .map_err(|_| ServerError::Comm("internal error (comm)".to_owned()))?;
+        self.comm.send(req).await.map_err(|_| ServerError::Comm("internal error".to_owned()))?;
 
         // one request at a time
         let receiver = self.comm_receiver.lock().expect("poisoned mutex");
@@ -230,13 +257,13 @@ impl Server {
                                 }
                                 _ => Err(ServerError::Comm("unexpected response".to_string())),
                             },
-                        }
+                        };
                     }
                     // ignore ids that don't match
                 }
                 Err(mpsc::TryRecvError::Empty) => (),
                 Err(mpsc::TryRecvError::Disconnected) => {
-                    return Err(ServerError::Comm("internal error (disc)".to_string()))
+                    return Err(ServerError::Comm("disconnected".to_string()))
                 }
             }
             sleep(Duration::from_millis(100));
@@ -251,6 +278,10 @@ impl Server {
 
 impl Drop for Server {
     fn drop(&mut self) {
-        let _ = self.stop();
+        let handle = self.server.clone();
+        thread::spawn(move || {
+            let fut = handle.stop(false);
+            rt::System::new().block_on(fut)
+        });
     }
 }

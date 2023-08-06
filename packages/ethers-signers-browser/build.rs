@@ -1,7 +1,7 @@
 use std::path::Path;
 use trunk_build_time::{cmd::build::Build, config::ConfigOptsBuild};
 
-const FRONTEND_VERSION: &str = "0.1.1";
+const FRONTEND_VERSION: &str = "0.2.0";
 const FRONTEND: &str = "../ethers-signers-browser-frontend";
 
 async fn build_frontend(path: &str) -> Result<(), Box<dyn std::error::Error>> {

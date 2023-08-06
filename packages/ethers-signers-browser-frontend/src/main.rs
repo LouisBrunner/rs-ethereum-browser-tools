@@ -52,7 +52,7 @@ async fn call_provider(
             let sig = provider.request_sign_text(address_to_string(address), message).await?;
             Ok(ws::messages::Response {
                 id: request.id,
-                content: ws::messages::ResponseContent::Signature { signature: sig },
+                content: ws::messages::ResponseContent::MessageSignature { signature: sig },
             })
         }
         ws::messages::RequestContent::SignBinaryMessage { address, message } => {
@@ -60,7 +60,7 @@ async fn call_provider(
                 provider.request_sign_hash(address_to_string(address), message.to_string()).await?;
             Ok(ws::messages::Response {
                 id: request.id,
-                content: ws::messages::ResponseContent::Signature { signature: sig },
+                content: ws::messages::ResponseContent::MessageSignature { signature: sig },
             })
         }
         ws::messages::RequestContent::SignTransaction { transaction } => {
@@ -74,7 +74,7 @@ async fn call_provider(
             let sig = provider.request_sign_transaction(transaction).await?;
             Ok(ws::messages::Response {
                 id: request.id,
-                content: ws::messages::ResponseContent::Signature { signature: sig },
+                content: ws::messages::ResponseContent::TransactionSignature { signature: sig },
             })
         }
         ws::messages::RequestContent::SignTypedData { address, typed_data } => {
@@ -82,7 +82,7 @@ async fn call_provider(
                 provider.request_sign_typed_data(address_to_string(address), typed_data).await?;
             Ok(ws::messages::Response {
                 id: request.id,
-                content: ws::messages::ResponseContent::Signature { signature: sig },
+                content: ws::messages::ResponseContent::MessageSignature { signature: sig },
             })
         }
     }

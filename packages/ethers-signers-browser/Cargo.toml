@@ -48,6 +48,7 @@ webbrowser = { version = "0.8.10", default-features = false, features = [
 
 [dev-dependencies]
 tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
+serial_test = "2.0.0"
 
 [build-dependencies]
 ethers-signers-browser-frontend.workspace = true

@@ -65,8 +65,15 @@ impl WSFlow {
                     accounts: addresses,
                 });
             }
-            ResponseContent::Signature { signature } => {
-                self.comm.do_send(comm::WSReply::Signature {
+            ResponseContent::MessageSignature { signature } => {
+                self.comm.do_send(comm::WSReply::MessageSignature {
+                    id: response.id,
+                    client: addr,
+                    signature,
+                });
+            }
+            ResponseContent::TransactionSignature { signature } => {
+                self.comm.do_send(comm::WSReply::TransactionSignature {
                     id: response.id,
                     client: addr,
                     signature,
@@ -83,7 +90,7 @@ impl WSFlow {
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
             if Instant::now().duration_since(act.last_heartbeat) > CLIENT_TIMEOUT {
                 ctx.stop();
-                return
+                return;
             }
 
             ctx.ping(b"");

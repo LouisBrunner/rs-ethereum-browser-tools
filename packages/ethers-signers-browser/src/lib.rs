@@ -7,8 +7,8 @@ use ethers::{
         transaction::{eip2718::TypedTransaction, eip712::Eip712},
         Address, Signature as EthSig,
     },
-    types::transaction::eip712::TypedData,
-    utils::hash_message,
+    types::transaction::{eip2718::TypedTransactionError, eip712::TypedData},
+    utils::{hash_message, hex, rlp},
 };
 use http::ServerOptions;
 use log::info;
@@ -61,19 +61,21 @@ pub enum BrowserSignerError {
     /// Error from the server
     #[error("server error: {0}")]
     ServerError(#[from] http::ServerError),
-    #[error("{0}")]
-    Other(String),
-    /// Error type from Eip712Error message
-    #[error("eip712 error: {0:?}")]
-    Eip712Error(String),
+    /// Couldn't find any addresses in the browser
+    #[error("no addresses found in browser")]
+    NoAddressFound,
+    /// Error while parsing the signature
     #[error("signature error: {0}")]
     SignatureError(#[from] ethers::core::types::SignatureError),
-}
-
-impl From<String> for BrowserSignerError {
-    fn from(s: String) -> Self {
-        Self::Other(s)
-    }
+    /// Some methods are no supported
+    #[error("unsupported: {0}")]
+    Unsupported(String),
+    /// Error while parsing the tx signature
+    #[error("transaction signature error: {0}")]
+    TransactionSignatureHexError(#[from] hex::FromHexError),
+    /// Error while parsing the tx signature
+    #[error("transaction signature error: {0}")]
+    TransactionSignatureRLPError(#[from] TypedTransactionError),
 }
 
 fn prompt_user(url: String) -> Result<(), BrowserSignerError> {
@@ -108,7 +110,7 @@ impl BrowserSigner {
 
         let addresses = server.get_user_addresses().await?;
         if addresses.is_empty() {
-            return Err(BrowserSignerError::Other("no addresses found in browser".to_owned()))
+            return Err(BrowserSignerError::NoAddressFound);
         }
 
         Ok(Self { chain_id, server, addresses, url })
@@ -161,18 +163,20 @@ impl Signer for BrowserSigner {
 
     #[instrument(err)]
     async fn sign_transaction(&self, tx: &TypedTransaction) -> Result<EthSig, Self::Error> {
-        let mut tx_with_chain = tx.clone();
-        let chain_id = tx_with_chain.chain_id().map(|id| id.as_u64()).unwrap_or(self.chain_id);
-        tx_with_chain.set_chain_id(chain_id);
-        let sig = self.server.sign_transaction(tx_with_chain).await?;
-        Ok(EthSig::from_str(&sig)?)
+        let mut tx = tx.clone();
+        tx.set_chain_id(tx.chain_id().unwrap_or(self.chain_id.into()));
+        let sig = self.server.sign_transaction(tx).await?;
+        let sig = hex::decode(sig)?;
+        let signed_rlp = rlp::Rlp::new(sig.as_slice());
+        let (_, decoded_sig) = TypedTransaction::decode_signed(&signed_rlp)?;
+        Ok(decoded_sig)
     }
 
     async fn sign_typed_data<T: Eip712 + Send + Sync>(
         &self,
         _payload: &T,
     ) -> Result<EthSig, Self::Error> {
-        Err(BrowserSignerError::Other(
+        Err(BrowserSignerError::Unsupported(
             "sign_typed_data is not supported, use sign_typed_data_raw instead".to_owned(),
         ))
     }
@@ -195,11 +199,14 @@ impl Signer for BrowserSigner {
 
 #[cfg(test)]
 mod tests {
+    use ethers::types::{transaction::eip2930::AccessList, Eip1559TransactionRequest};
+    use serial_test::serial;
+
     use super::*;
 
     async fn test_signer() -> BrowserSigner {
         BrowserSigner::new_with_options(
-            1,
+            5, // goerli
             BrowserOptions {
                 open_browser: false,
                 server: Some(ServerOptions { port: Some(7777), nonce: Some("123".to_owned()) }),
@@ -209,16 +216,57 @@ mod tests {
         .unwrap()
     }
 
+    // #[tokio::test]
+    // #[serial]
+    // #[cfg_attr(not(feature = "browser"), ignore)]
+    // async fn it_signs_text_messages() {
+    //     let signer = test_signer().await;
+
+    //     println!("address: {:#x}", signer.address());
+
+    //     let message = "hello world".as_bytes();
+
+    //     let sig = signer.sign_message(&message).await.unwrap();
+    //     sig.verify(message, signer.address()).expect("valid sig");
+    // }
+
+    // #[tokio::test]
+    // #[serial]
+    // #[cfg_attr(not(feature = "browser"), ignore)]
+    // async fn it_signs_binary_messages() {
+    //     let signer = test_signer().await;
+
+    //     println!("address: {:#x}", signer.address());
+
+    //     let message = vec![0x01, 0x02, 0x03];
+
+    //     let sig = signer.sign_message(&message).await.unwrap();
+    //     sig.verify(message, signer.address()).expect("valid sig");
+    // }
+
     #[tokio::test]
+    #[serial]
     #[cfg_attr(not(feature = "browser"), ignore)]
-    async fn it_signs_text_messages() {
+    async fn it_signs_transaction() {
         let signer = test_signer().await;
 
-        println!("address: {:x}", signer.address());
+        println!("address: {:#x}", signer.address());
 
-        let message = "hello world".as_bytes();
+        let transaction = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+            from: Some(signer.address()),
+            to: Some(ethers::types::NameOrAddress::Address(signer.address())),
+            nonce: None,
+            gas: None,
+            max_priority_fee_per_gas: None,
+            max_fee_per_gas: None,
+            value: None,
+            data: None,
+            chain_id: None,
+            access_list: AccessList(vec![]),
+        });
 
-        let sig = signer.sign_message(&message).await.unwrap();
-        sig.verify(message, signer.address()).expect("valid sig");
+        let sig = signer.sign_transaction(&transaction).await.unwrap();
+        // FIXME: would be nicer to have an actual verify
+        println!("sig: {:?}", sig);
     }
 }

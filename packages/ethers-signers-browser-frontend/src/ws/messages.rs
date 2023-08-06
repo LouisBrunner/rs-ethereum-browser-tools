@@ -35,6 +35,7 @@ pub struct Response {
 pub enum ResponseContent {
     Init {},
     Accounts { addresses: Vec<Address> },
-    Signature { signature: String },
+    MessageSignature { signature: String },
+    TransactionSignature { signature: String },
     Error { error: String },
 }

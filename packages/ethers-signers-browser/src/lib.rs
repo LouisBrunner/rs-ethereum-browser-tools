@@ -266,59 +266,59 @@ mod tests {
         .unwrap()
     }
 
-    // #[tokio::test]
-    // #[serial]
-    // #[cfg_attr(not(feature = "browser"), ignore)]
-    // async fn it_signs_text_messages() {
-    //     let signer = test_signer_with_goerli().await;
+    #[tokio::test]
+    #[serial]
+    #[cfg_attr(not(feature = "browser"), ignore)]
+    async fn it_signs_text_messages() {
+        let signer = test_signer_with_goerli().await;
 
-    //     println!("address: {:#x}", signer.address());
+        println!("address: {:#x}", signer.address());
 
-    //     let message = "hello world".as_bytes();
+        let message = "hello world".as_bytes();
 
-    //     let sig = signer.sign_message(&message).await.unwrap();
-    //     sig.verify(message, signer.address()).expect("valid sig");
-    // }
+        let sig = signer.sign_message(&message).await.unwrap();
+        sig.verify(message, signer.address()).expect("valid sig");
+    }
 
-    // #[tokio::test]
-    // #[serial]
-    // #[cfg_attr(not(feature = "browser"), ignore)]
-    // async fn it_signs_binary_messages() {
-    //     let signer = test_signer_with_goerli().await;
+    #[tokio::test]
+    #[serial]
+    #[cfg_attr(not(feature = "browser"), ignore)]
+    async fn it_signs_binary_messages() {
+        let signer = test_signer_with_goerli().await;
 
-    //     println!("address: {:#x}", signer.address());
+        println!("address: {:#x}", signer.address());
 
-    //     let message = vec![0x01, 0x02, 0x03];
+        let message = vec![0x01, 0x02, 0x03];
 
-    //     let sig = signer.sign_message(&message).await.unwrap();
-    //     sig.verify(message, signer.address()).expect("valid sig");
-    // }
+        let sig = signer.sign_message(&message).await.unwrap();
+        sig.verify(message, signer.address()).expect("valid sig");
+    }
 
-    // #[tokio::test]
-    // #[serial]
-    // #[cfg_attr(not(feature = "browser"), ignore)]
-    // async fn it_signs_transaction() {
-    //     let signer = test_signer_with_goerli().await;
+    #[tokio::test]
+    #[serial]
+    #[cfg_attr(not(feature = "browser"), ignore)]
+    async fn it_signs_transaction() {
+        let signer = test_signer_with_goerli().await;
 
-    //     println!("address: {:#x}", signer.address());
+        println!("address: {:#x}", signer.address());
 
-    //     let transaction = TypedTransaction::Eip1559(Eip1559TransactionRequest {
-    //         from: Some(signer.address()),
-    //         to: Some(ethers::types::NameOrAddress::Address(signer.address())),
-    //         nonce: None,
-    //         gas: None,
-    //         max_priority_fee_per_gas: None,
-    //         max_fee_per_gas: None,
-    //         value: None,
-    //         data: None,
-    //         chain_id: None,
-    //         access_list: AccessList(vec![]),
-    //     });
+        let transaction = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+            from: Some(signer.address()),
+            to: Some(ethers::types::NameOrAddress::Address(signer.address())),
+            nonce: None,
+            gas: None,
+            max_priority_fee_per_gas: None,
+            max_fee_per_gas: None,
+            value: None,
+            data: None,
+            chain_id: None,
+            access_list: AccessList(vec![]),
+        });
 
-    //     let sig = signer.sign_transaction(&transaction).await.unwrap();
-    //     // FIXME: would be nicer to have an actual verify
-    //     println!("sig: {:?}", sig);
-    // }
+        let sig = signer.sign_transaction(&transaction).await.unwrap();
+        // FIXME: would be nicer to have an actual verify
+        println!("sig: {:?}", sig);
+    }
 
     #[tokio::test]
     #[serial]
@@ -328,23 +328,23 @@ mod tests {
 
         println!("address: {:#x}", signer.address());
 
-        let message = "hello coston2".as_bytes();
+        let message = "hello stranger".as_bytes();
 
         let sig = signer.sign_message(&message).await.unwrap();
         sig.verify(message, signer.address()).expect("valid sig");
     }
 
-    // #[tokio::test]
-    // #[serial]
-    // #[cfg_attr(not(feature = "browser"), ignore)]
-    // async fn it_signs_a_transaction_for_provided_chain() {
-    //     let signer = test_signer_with_provided_chain().await;
+    #[tokio::test]
+    #[serial]
+    #[cfg_attr(not(feature = "browser"), ignore)]
+    async fn it_signs_a_transaction_for_provided_chain() {
+        let signer = test_signer_with_provided_chain().await;
 
-    //     println!("address: {:#x}", signer.address());
+        println!("address: {:#x}", signer.address());
 
-    //     let message = "hello coston2".as_bytes();
+        let message = "hello coston2".as_bytes();
 
-    //     let sig = signer.sign_message(&message).await.unwrap();
-    //     sig.verify(message, signer.address()).expect("valid sig");
-    // }
+        let sig = signer.sign_message(&message).await.unwrap();
+        sig.verify(message, signer.address()).expect("valid sig");
+    }
 }

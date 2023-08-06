@@ -1,6 +1,6 @@
 pub use crate::provider::NativeCurrency;
 use crate::provider::{ChainData, Provider, ProviderError};
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 use tokio::sync::mpsc;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{window, Window};
@@ -83,9 +83,29 @@ impl PartialEq for ProviderStatus {
 impl ProviderStatus {
     /// Change the current `chain_id` with smart handling for missing chains, see
     /// `requires_chain_info`
-    pub async fn change_chain(&self, chain_id: u64) -> Result<(), ProviderError> {
-        match self.provider.request_switch_chain(format!("{:x}", chain_id)).await {
+    pub async fn change_chain(
+        &self,
+        chain_id: u64,
+        chains: Option<HashMap<u64, ChainInfo>>,
+    ) -> Result<(), ProviderError> {
+        let chain_id_str = format!("{:x}", chain_id);
+        match self.provider.request_switch_chain(chain_id_str.clone()).await {
             Err(ProviderError::UnknownChain(e)) => {
+                if let Some(chains) = chains {
+                    if let Some(info) = chains.get(&chain_id) {
+                        self.provider
+                            .request_add_chain(ChainData {
+                                chain_id: chain_id_str,
+                                chain_name: info.chain_name.clone(),
+                                rpc_urls: info.rpc_urls.clone(),
+                                icon_urls: info.icon_urls.clone(),
+                                native_currency: info.native_currency.clone(),
+                                block_explorer_urls: info.block_explorer_urls.clone(),
+                            })
+                            .await?;
+                        return Ok(())
+                    }
+                }
                 let (tx, mut rx) = mpsc::channel(1);
                 self.requires_chain_info.set(Some((chain_id, tx)));
                 rx.recv().await.ok_or(ProviderError::UnknownChain(e))

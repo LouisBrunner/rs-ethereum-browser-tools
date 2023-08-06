@@ -2,12 +2,12 @@ use components::{label::Label, wallet_status::WalletStatus};
 use console::console_error;
 use ethereum_provider::{
     provider::ProviderError,
-    yew::{use_provider, ProviderStatus},
+    yew::{use_provider, ChainInfo, NativeCurrency, ProviderStatus},
 };
 use ethers::types::H160;
 use helpers::ethers::{address_to_string, transform_transaction};
 use hooks::use_ws::use_ws;
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 use ws::messages::{RequestContent, Response, ResponseContent};
 use yew::prelude::*;
 
@@ -23,7 +23,29 @@ async fn call_provider(
 ) -> Result<ResponseContent, ProviderError> {
     match request {
         RequestContent::Init { chain_id, chains } => {
-            status.change_chain(chain_id).await?;
+            let chains = chains.map(|h| {
+                h.iter()
+                    .map(|(k, v)| {
+                        (
+                            *k,
+                            ChainInfo {
+                                chain_name: v.chain_name.clone(),
+                                rpc_urls: v.rpc_urls.clone(),
+                                icon_urls: v.icon_urls.clone(),
+                                native_currency: v.native_currency.clone().map(|v| {
+                                    NativeCurrency {
+                                        name: v.name,
+                                        symbol: v.symbol,
+                                        decimals: v.decimals,
+                                    }
+                                }),
+                                block_explorer_urls: v.block_explorer_urls.clone(),
+                            },
+                        )
+                    })
+                    .collect::<HashMap<_, _>>()
+            });
+            status.change_chain(chain_id, chains).await?;
             Ok(ResponseContent::Init {})
         }
         RequestContent::Accounts {} => {
@@ -60,7 +82,7 @@ async fn call_provider(
                 Err(e) => return Err(ProviderError::Unsupported(format!("transaction: {}", e))),
             };
             if let Some(chain_id) = chain_id {
-                status.change_chain(chain_id).await?;
+                status.change_chain(chain_id, None).await?;
             }
             let sig = status.provider.request_sign_transaction(transaction).await?;
             Ok(ResponseContent::TransactionSignature { signature: sig })

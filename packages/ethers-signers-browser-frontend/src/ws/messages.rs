@@ -12,7 +12,7 @@ use std::collections::HashMap;
 pub struct NativeCurrency {
     pub name: String,
     pub symbol: String,
-    pub decimals: u128,
+    pub decimals: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

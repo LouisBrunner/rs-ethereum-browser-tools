@@ -232,13 +232,13 @@ impl Provider {
 
 #[derive(Serialize)]
 #[serde(untagged)]
-pub enum RequestMethodParams<T> {
+pub enum RequestMethodParams<T: Serialize> {
     Vec(Vec<T>),
     Object(T),
 }
 
 #[derive(Serialize)]
-pub struct RequestMethod<T> {
+pub struct RequestMethod<T: Serialize> {
     pub method: String,
     pub params: Option<RequestMethodParams<T>>,
 }
@@ -279,7 +279,7 @@ struct SwitchEthereumChainParams {
 pub struct NativeCurrency {
     pub name: String,
     pub symbol: String,
-    pub decimals: u128,
+    pub decimals: u64,
 }
 
 #[derive(Serialize)]

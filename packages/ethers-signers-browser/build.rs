@@ -28,13 +28,10 @@ async fn build_frontend(path: &str) -> Result<(), Box<dyn std::error::Error>> {
 async fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
-    match build_frontend(FRONTEND).await {
-        Err(e) => {
-            eprintln!("Failed to build frontend, fallback to versionned: {}", e);
-            // FIXME: we shouldn't assume the frontend will have the same version
-            let frontend_vers = format!("{}-{}", FRONTEND, FRONTEND_VERSION);
-            build_frontend(&frontend_vers).await.unwrap();
-        }
-        _ => {}
+    if let Err(e) = build_frontend(FRONTEND).await {
+        eprintln!("Failed to build frontend, fallback to versionned: {}", e);
+        // FIXME: we shouldn't assume the frontend will have the same version
+        let frontend_vers = format!("{}-{}", FRONTEND, FRONTEND_VERSION);
+        build_frontend(&frontend_vers).await.unwrap();
     };
 }

@@ -6,15 +6,16 @@ use ethers::core::{
         H256,
     },
 };
+use ethers_signers_browser_frontend::ws::messages::ChainInfo;
 use log::{error, info, warn};
 use rand::distributions::{Alphanumeric, DistString};
-use std::sync::mpsc;
+use std::{collections::HashMap, sync::mpsc};
 
 /// Comm sends this message to sessions
 #[derive(Clone, Message)]
 #[rtype(result = "()")]
 pub(super) enum WSRequest {
-    Init { id: String, chain_id: u64 },
+    Init { id: String, chain_id: u64, chains: Option<HashMap<u64, ChainInfo>> },
     Accounts { id: String },
     SignBinaryMessage { id: String, address: Address, message: H256 },
     SignTextMessage { id: String, address: Address, message: String },
@@ -75,6 +76,7 @@ pub(super) enum AsyncResponseContent {
 pub(super) struct CommServer {
     server: mpsc::Sender<AsyncResponse>,
     chain_id: u64,
+    chains: Option<HashMap<u64, ChainInfo>>,
     client: Option<WebsocketClient>,
     init_status: InitStatus,
     is_handling_request: bool,
@@ -89,11 +91,16 @@ enum InitStatus {
 }
 
 impl CommServer {
-    pub fn new(server: mpsc::Sender<AsyncResponse>, chain_id: u64) -> CommServer {
+    pub fn new(
+        server: mpsc::Sender<AsyncResponse>,
+        chain_id: u64,
+        chains: Option<HashMap<u64, ChainInfo>>,
+    ) -> CommServer {
         CommServer {
             client: None,
             server,
             chain_id,
+            chains,
             init_status: InitStatus::None,
             is_handling_request: false,
             pending_messages: vec![],
@@ -107,10 +114,7 @@ impl CommServer {
 
 impl CommServer {
     fn is_same_client(&self, addr: &WebsocketClient) -> bool {
-        match self.client {
-            Some(ref client) if client == addr => true,
-            _ => false,
-        }
+        matches!(self.client, Some(ref client) if client == addr)
     }
 
     fn is_client_init(&self) -> bool {
@@ -143,12 +147,13 @@ impl CommServer {
 impl CommServer {
     fn send_pending_message(&mut self) {
         if self.is_handling_request || !self.has_ready_client() {
-            return;
+            return
         }
         if let Some(msg) = self.pending_messages.first() {
             self.is_handling_request = true;
-            self.client.as_ref().unwrap().do_send(match msg.clone() {
-                AsyncRequest { id, content } => match content {
+            self.client.as_ref().unwrap().do_send({
+                let AsyncRequest { id, content } = msg.clone();
+                match content {
                     AsyncRequestContent::Accounts {} => WSRequest::Accounts { id },
                     AsyncRequestContent::SignTextMessage { address, message } => {
                         WSRequest::SignTextMessage { id, address, message }
@@ -162,7 +167,7 @@ impl CommServer {
                     AsyncRequestContent::SignTypedData { address, typed_data } => {
                         WSRequest::SignTypedData { id, address, typed_data }
                     }
-                },
+                }
             });
         }
     }
@@ -172,15 +177,12 @@ impl CommServer {
             InitStatus::Pending { id: original_id } => {
                 if original_id != id {
                     self.kick_current_client("invalid id on init");
-                    return;
+                    return
                 }
                 self.init_status = InitStatus::Done;
                 self.send_pending_message();
             }
-            _ => {
-                self.kick_current_client("init already done");
-                return;
-            }
+            _ => self.kick_current_client("init already done"),
         }
     }
 
@@ -199,7 +201,7 @@ impl CommServer {
                 InitStatus::Pending { id: original_id } => {
                     if original_id != id {
                         self.kick_current_client("invalid id on init");
-                        return;
+                        return
                     }
                     if let AsyncResponseContent::Error { .. } = content {
                         if let Some(msg) = self.pending_messages.first() {
@@ -218,7 +220,7 @@ impl CommServer {
                     self.kick_current_client("wrong init status");
                 }
             }
-            return;
+            return
         }
 
         if let Some(msg) = self.pending_messages.first() {
@@ -257,47 +259,51 @@ impl Handler<WSReply> for CommServer {
                 self.client = Some(client.clone());
                 let id = self.gen_id();
                 self.init_status = InitStatus::Pending { id: id.clone() };
-                client.do_send(WSRequest::Init { id, chain_id: self.chain_id });
+                client.do_send(WSRequest::Init {
+                    id,
+                    chain_id: self.chain_id,
+                    chains: self.chains.clone(),
+                });
             }
             WSReply::Disconnect { client } => {
                 info!("Browser disconnected");
                 if !self.is_same_client(&client) {
-                    return;
+                    return
                 }
                 self.cleanup_client();
             }
             WSReply::Init { id, client } => {
                 if !self.is_same_client(&client) {
                     self.kick_client(&client, "invalid client");
-                    return;
+                    return
                 }
                 self.handle_init(id);
             }
             WSReply::Accounts { id, client, accounts } => {
                 if !self.is_same_client(&client) {
                     self.kick_client(&client, "invalid client");
-                    return;
+                    return
                 }
                 self.handle_response(id, AsyncResponseContent::Accounts { accounts });
             }
             WSReply::MessageSignature { id, client, signature } => {
                 if !self.is_same_client(&client) {
                     self.kick_client(&client, "invalid client");
-                    return;
+                    return
                 }
                 self.handle_response(id, AsyncResponseContent::MessageSignature { signature });
             }
             WSReply::TransactionSignature { id, client, signature } => {
                 if !self.is_same_client(&client) {
                     self.kick_client(&client, "invalid client");
-                    return;
+                    return
                 }
                 self.handle_response(id, AsyncResponseContent::TransactionSignature { signature });
             }
             WSReply::Error { id, client, error } => {
                 if !self.is_same_client(&client) {
                     self.kick_client(&client, "invalid client");
-                    return;
+                    return
                 }
                 self.handle_response(id, AsyncResponseContent::Error { error });
             }

@@ -13,6 +13,8 @@ pub enum ProviderError {
     Deserialize(String),
     #[error("unsupported: {0}")]
     Unsupported(String),
+    #[error("unknown chain: {0}")]
+    UnknownChain(RPCError),
 }
 
 impl From<JsValue> for ProviderError {
@@ -273,6 +275,29 @@ struct SwitchEthereumChainParams {
     chain_id: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct NativeCurrency {
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u128,
+}
+
+#[derive(Serialize)]
+pub struct ChainData {
+    #[serde(rename = "chainId")]
+    pub chain_id: String,
+    #[serde(rename = "chainName")]
+    pub chain_name: Option<String>,
+    #[serde(rename = "rpcUrls")]
+    pub rpc_urls: Option<Vec<String>>,
+    #[serde(rename = "iconUrls")]
+    pub icon_urls: Option<Vec<String>>,
+    #[serde(rename = "nativeCurrency")]
+    pub native_currency: Option<NativeCurrency>,
+    #[serde(rename = "blockExplorerUrls")]
+    pub block_explorer_urls: Option<Vec<String>>,
+}
+
 #[derive(Serialize)]
 enum TypedData<T: Serialize> {
     Address(String),
@@ -292,6 +317,7 @@ pub struct Transaction {
 }
 
 static REQUEST_SWITCH_CHAIN_ID: &str = "wallet_switchEthereumChain";
+static REQUEST_ADD_CHAIN: &str = "wallet_addEthereumChain";
 static REQUEST_ACCOUNTS: &str = "eth_requestAccounts";
 static REQUEST_PERSONAL_SIGN: &str = "personal_sign";
 static REQUEST_SIGN: &str = "eth_sign";
@@ -315,25 +341,27 @@ impl Provider {
         })
     }
 
-    // TODO: wallet_addEthereumChain missing
-    // TODO: wallet_watchAsset missing
-    // TODO: eth_sendTransaction missing
-    // TODO: eth_sendRawTransaction missing
-    // TODO: eth_newFilter missing
-    // TODO: eth_newBlockFilter missing
-    // TODO: eth_newPendingTransactionFilter missing
-    // TODO: eth_getFilterChanges missing
-    // TODO: eth_getFilterLogs missing
-    // TODO: signTypedData_v1 missing
-    // TODO: signTypedData_v3 missing
-    // TODO: signTypedData_v4 missing
+    // TODO: missing functions
 
     pub async fn request_switch_chain(&self, chain_id: String) -> Result<(), ProviderError> {
-        self.request(
-            REQUEST_SWITCH_CHAIN_ID.to_owned(),
-            Some(RequestMethodParams::Vec(vec![SwitchEthereumChainParams { chain_id }])),
-        )
-        .await?;
+        match self
+            .request(
+                REQUEST_SWITCH_CHAIN_ID.to_owned(),
+                Some(RequestMethodParams::Vec(vec![SwitchEthereumChainParams { chain_id }])),
+            )
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(ProviderError::RPC(e)) if e.message.contains("addEthereumChain") => {
+                Err(ProviderError::UnknownChain(e))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn request_add_chain(&self, chain: ChainData) -> Result<(), ProviderError> {
+        self.request(REQUEST_ADD_CHAIN.to_owned(), Some(RequestMethodParams::Vec(vec![chain])))
+            .await?;
         Ok(())
     }
 

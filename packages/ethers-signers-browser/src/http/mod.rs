@@ -7,9 +7,11 @@ use ethers::core::{
         H256,
     },
 };
+use ethers_signers_browser_frontend::ws::messages::ChainInfo;
 use rand::distributions::{Alphanumeric, DistString};
 use routes::{dist, index, ws_open};
 use std::{
+    collections::HashMap,
     sync::{
         mpsc::{self, RecvError},
         Mutex,
@@ -58,7 +60,7 @@ async fn run_server_and_comm(
     comm: comm::CommServer,
     sender: mpsc::Sender<ServerDataResult>,
     port: Option<u16>,
-) -> () {
+) {
     let comm = comm.start();
     let (server, data) = match create_server(nonce, comm.clone(), port).await {
         Ok((server, port)) => {
@@ -106,7 +108,11 @@ pub(super) struct Server {
 }
 
 impl Server {
-    pub async fn new(chain_id: u64, opts: Option<ServerOptions>) -> Result<Self, ServerError> {
+    pub async fn new(
+        chain_id: u64,
+        chains: Option<HashMap<u64, ChainInfo>>,
+        opts: Option<ServerOptions>,
+    ) -> Result<Self, ServerError> {
         let (sender, receiver) = mpsc::channel();
         let (comm_sender, comm_receiver) = mpsc::channel();
 
@@ -118,7 +124,7 @@ impl Server {
             thread::spawn(move || {
                 let fut = run_server_and_comm(
                     nonce,
-                    comm::CommServer::new(comm_sender, chain_id),
+                    comm::CommServer::new(comm_sender, chain_id, chains),
                     sender,
                     opts.port,
                 );
@@ -126,7 +132,7 @@ impl Server {
             });
         }
 
-        let data = receiver.recv()?.map_err(|e| ServerError::Init(e))?;
+        let data = receiver.recv()?.map_err(ServerError::Init)?;
 
         Ok(Self {
             port: data.port,
@@ -257,7 +263,7 @@ impl Server {
                                 }
                                 _ => Err(ServerError::Comm("unexpected response".to_string())),
                             },
-                        };
+                        }
                     }
                     // ignore ids that don't match
                 }

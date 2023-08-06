@@ -6,6 +6,23 @@ use ethers::core::{
     },
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct NativeCurrency {
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ChainInfo {
+    pub chain_name: Option<String>,
+    pub rpc_urls: Option<Vec<String>>,
+    pub icon_urls: Option<Vec<String>>,
+    pub native_currency: Option<NativeCurrency>,
+    pub block_explorer_urls: Option<Vec<String>>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Request {
@@ -16,7 +33,7 @@ pub struct Request {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "type", content = "message")]
 pub enum RequestContent {
-    Init { chain_id: u64 },
+    Init { chain_id: u64, chains: Option<HashMap<u64, ChainInfo>> },
     Accounts {},
     SignBinaryMessage { address: Address, message: H256 },
     SignTextMessage { address: Address, message: String },

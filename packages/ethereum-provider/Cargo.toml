@@ -2,7 +2,7 @@
 name = "ethereum-provider"
 description = "EIP-1193 Ethereum Provider API for Rust"
 documentation = "https://docs.rs/ethereum-provider"
-version = "0.1.1"
+version = "0.2.0"
 
 edition.workspace = true
 rust-version.workspace = true
@@ -26,6 +26,9 @@ serde.workspace = true
 serde-wasm-bindgen.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tokio = { version = "1.29.1", optional = true, default-features = false, features = [
+  "sync",
+] }
 wasm-bindgen.workspace = true
 wasm-bindgen-futures.workspace = true
 web-sys.workspace = true
@@ -33,4 +36,4 @@ yew = { workspace = true, optional = true }
 
 [features]
 default = []
-yew = ["dep:yew"]
+yew = ["dep:yew", "dep:tokio"]

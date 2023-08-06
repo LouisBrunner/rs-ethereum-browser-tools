@@ -10,9 +10,10 @@ use ethers::{
     types::transaction::{eip2718::TypedTransactionError, eip712::TypedData},
     utils::{hash_message, hex, rlp},
 };
+pub use ethers_signers_browser_frontend::ws::messages::ChainInfo;
 use http::ServerOptions;
 use log::info;
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 use tracing::{instrument, trace};
 
 mod http;
@@ -42,13 +43,16 @@ pub struct BrowserSigner {
 
 impl std::fmt::Debug for BrowserSigner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BrowserSigner").field("chain_id", &self.chain_id).finish()
+        f.debug_struct("BrowserSigner")
+            .field("chain_id", &self.chain_id)
+            .field("url", &self.url)
+            .finish()
     }
 }
 
 impl std::fmt::Display for BrowserSigner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "BrowserSigner {{ chain_id: {} }}", self.chain_id)
+        write!(f, "BrowserSigner {{ chain_id: {}, url: {} }}", self.chain_id, self.url)
     }
 }
 
@@ -83,7 +87,11 @@ fn prompt_user(url: String) -> Result<(), BrowserSignerError> {
 }
 
 pub struct BrowserOptions {
-    pub open_browser: bool,
+    /// A map of chain IDs to their info, which is used to prepopulate the browser if needed
+    pub chains: Option<HashMap<u64, ChainInfo>>,
+    /// Whether to open the browser automatically, defaults to true
+    pub open_browser: Option<bool>,
+    /// The server options, defaults to randomized
     pub server: Option<ServerOptions>,
 }
 
@@ -91,26 +99,30 @@ impl BrowserSigner {
     /// Instantiate a new signer from a chain id.
     ///
     /// This function retrieves the public addresses from the browser. It is therefore `async`.
-    #[instrument(err, skip(chain_id))]
+    #[instrument(err)]
     pub async fn new(chain_id: u64) -> Result<BrowserSigner, BrowserSignerError> {
-        Self::new_with_options(chain_id, BrowserOptions { open_browser: true, server: None }).await
+        Self::new_with_options(
+            chain_id,
+            BrowserOptions { chains: None, open_browser: Some(true), server: None },
+        )
+        .await
     }
 
     pub async fn new_with_options(
         chain_id: u64,
         opts: BrowserOptions,
     ) -> Result<BrowserSigner, BrowserSignerError> {
-        let server = http::Server::new(chain_id, opts.server).await?;
+        let server = http::Server::new(chain_id, opts.chains, opts.server).await?;
 
         let url = format!("http://localhost:{}?nonce={}", server.port(), server.nonce());
         info!("Please open your browser at {} and connect your wallet", url);
-        if opts.open_browser {
+        if opts.open_browser.unwrap_or(true) {
             prompt_user(url.clone())?;
         }
 
         let addresses = server.get_user_addresses().await?;
         if addresses.is_empty() {
-            return Err(BrowserSignerError::NoAddressFound);
+            return Err(BrowserSignerError::NoAddressFound)
         }
 
         Ok(Self { chain_id, server, addresses, url })
@@ -199,16 +211,54 @@ impl Signer for BrowserSigner {
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use ethers::types::{transaction::eip2930::AccessList, Eip1559TransactionRequest};
+    use ethers_signers_browser_frontend::ws::messages::NativeCurrency;
     use serial_test::serial;
 
     use super::*;
 
-    async fn test_signer() -> BrowserSigner {
+    async fn test_signer_with_goerli() -> BrowserSigner {
+        test_signer_with_options(5, None).await // goerli
+    }
+
+    async fn test_signer_with_unknown_chain() -> BrowserSigner {
+        test_signer_with_options(7777, None).await // goerli
+    }
+
+    async fn test_signer_with_provided_chain() -> BrowserSigner {
+        let mut chains = HashMap::new();
+        chains.insert(
+            114,
+            ChainInfo {
+                chain_name: Some("Flare Coston2".to_owned()),
+                rpc_urls: Some(vec!["https://coston2-api.flare.network/ext/C/rpc".to_owned()]),
+                icon_urls: Some(
+                    vec!["https://docs.flare.network/assets/logo-C2FLR.png".to_owned()],
+                ),
+                native_currency: Some(NativeCurrency {
+                    name: "Coston2 FLR".to_owned(),
+                    symbol: "C2FLR".to_owned(),
+                    decimals: 18,
+                }),
+                block_explorer_urls: Some(
+                    vec!["https://coston2-explorer.flare.network".to_owned()],
+                ),
+            },
+        );
+        test_signer_with_options(114, Some(chains)).await // goerli
+    }
+
+    async fn test_signer_with_options(
+        chain: u64,
+        chains: Option<HashMap<u64, ChainInfo>>,
+    ) -> BrowserSigner {
         BrowserSigner::new_with_options(
-            5, // goerli
+            chain,
             BrowserOptions {
-                open_browser: false,
+                chains,
+                open_browser: Some(false),
                 server: Some(ServerOptions { port: Some(7777), nonce: Some("123".to_owned()) }),
             },
         )
@@ -220,7 +270,7 @@ mod tests {
     // #[serial]
     // #[cfg_attr(not(feature = "browser"), ignore)]
     // async fn it_signs_text_messages() {
-    //     let signer = test_signer().await;
+    //     let signer = test_signer_with_goerli().await;
 
     //     println!("address: {:#x}", signer.address());
 
@@ -234,7 +284,7 @@ mod tests {
     // #[serial]
     // #[cfg_attr(not(feature = "browser"), ignore)]
     // async fn it_signs_binary_messages() {
-    //     let signer = test_signer().await;
+    //     let signer = test_signer_with_goerli().await;
 
     //     println!("address: {:#x}", signer.address());
 
@@ -244,29 +294,57 @@ mod tests {
     //     sig.verify(message, signer.address()).expect("valid sig");
     // }
 
+    // #[tokio::test]
+    // #[serial]
+    // #[cfg_attr(not(feature = "browser"), ignore)]
+    // async fn it_signs_transaction() {
+    //     let signer = test_signer_with_goerli().await;
+
+    //     println!("address: {:#x}", signer.address());
+
+    //     let transaction = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+    //         from: Some(signer.address()),
+    //         to: Some(ethers::types::NameOrAddress::Address(signer.address())),
+    //         nonce: None,
+    //         gas: None,
+    //         max_priority_fee_per_gas: None,
+    //         max_fee_per_gas: None,
+    //         value: None,
+    //         data: None,
+    //         chain_id: None,
+    //         access_list: AccessList(vec![]),
+    //     });
+
+    //     let sig = signer.sign_transaction(&transaction).await.unwrap();
+    //     // FIXME: would be nicer to have an actual verify
+    //     println!("sig: {:?}", sig);
+    // }
+
     #[tokio::test]
     #[serial]
     #[cfg_attr(not(feature = "browser"), ignore)]
-    async fn it_signs_transaction() {
-        let signer = test_signer().await;
+    async fn it_signs_a_transaction_for_an_unknown_chain() {
+        let signer = test_signer_with_unknown_chain().await;
 
         println!("address: {:#x}", signer.address());
 
-        let transaction = TypedTransaction::Eip1559(Eip1559TransactionRequest {
-            from: Some(signer.address()),
-            to: Some(ethers::types::NameOrAddress::Address(signer.address())),
-            nonce: None,
-            gas: None,
-            max_priority_fee_per_gas: None,
-            max_fee_per_gas: None,
-            value: None,
-            data: None,
-            chain_id: None,
-            access_list: AccessList(vec![]),
-        });
+        let message = "hello coston2".as_bytes();
 
-        let sig = signer.sign_transaction(&transaction).await.unwrap();
-        // FIXME: would be nicer to have an actual verify
-        println!("sig: {:?}", sig);
+        let sig = signer.sign_message(&message).await.unwrap();
+        sig.verify(message, signer.address()).expect("valid sig");
     }
+
+    // #[tokio::test]
+    // #[serial]
+    // #[cfg_attr(not(feature = "browser"), ignore)]
+    // async fn it_signs_a_transaction_for_provided_chain() {
+    //     let signer = test_signer_with_provided_chain().await;
+
+    //     println!("address: {:#x}", signer.address());
+
+    //     let message = "hello coston2".as_bytes();
+
+    //     let sig = signer.sign_message(&message).await.unwrap();
+    //     sig.verify(message, signer.address()).expect("valid sig");
+    // }
 }

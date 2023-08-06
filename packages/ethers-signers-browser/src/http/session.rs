@@ -24,8 +24,8 @@ impl WSFlow {
 
     fn forward_to_client(&self, msg: comm::WSRequest) -> Result<SerdeResult<String>, String> {
         let msg = match msg {
-            comm::WSRequest::Init { id, chain_id } => {
-                Request { id, content: RequestContent::Init { chain_id } }
+            comm::WSRequest::Init { id, chain_id, chains } => {
+                Request { id, content: RequestContent::Init { chain_id, chains } }
             }
             comm::WSRequest::Accounts { id } => {
                 Request { id, content: RequestContent::Accounts {} }
@@ -90,7 +90,7 @@ impl WSFlow {
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
             if Instant::now().duration_since(act.last_heartbeat) > CLIENT_TIMEOUT {
                 ctx.stop();
-                return;
+                return
             }
 
             ctx.ping(b"");

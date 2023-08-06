@@ -33,7 +33,7 @@ default-members = [
 resolver = "2"
 
 [workspace.dependencies]
-ethereum-provider = { version = "0.1.1", path = "packages/ethereum-provider", default-features = false }
+ethereum-provider = { version = "0.2.0", path = "packages/ethereum-provider", default-features = false }
 ethers-signers-browser = { version = "0.2.0", path = "packages/ethers-signers-browser", default-features = false }
 ethers-signers-browser-frontend = { version = "0.2.0", path = "packages/ethers-signers-browser-frontend", default-features = false }
 

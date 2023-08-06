@@ -1,22 +1,24 @@
-use super::provider::{self, ProviderError};
+pub use crate::provider::NativeCurrency;
+use crate::provider::{ChainData, Provider, ProviderError};
 use std::rc::Rc;
+use tokio::sync::mpsc;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{window, Window};
 use yew::prelude::*;
 
-fn get_provider(window: &Option<Window>) -> Result<provider::Provider, ProviderError> {
+fn get_provider(window: &Option<Window>) -> Result<Provider, ProviderError> {
     let window: &Window =
         window.as_ref().ok_or(ProviderError::Unsupported("no window available".to_owned()))?;
-    let provider = provider::Provider::new(window)?;
+    let provider = Provider::new(window)?;
     Ok(provider)
 }
 
 fn listen_to_provider(
-    provider: provider::Provider,
+    provider: Provider,
     error: UseStateHandle<Option<ProviderError>>,
     chain_id: UseStateHandle<Option<String>>,
     accounts: UseStateHandle<Option<Vec<String>>>,
-) -> Result<Box<dyn Fn()>, provider::ProviderError> {
+) -> Result<Box<dyn Fn()>, ProviderError> {
     let chain_changed_cb = {
         let error = error.clone();
         Box::new(move |new_chain_id: Result<String, ProviderError>| match new_chain_id {
@@ -41,11 +43,87 @@ fn listen_to_provider(
     }))
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
+pub struct ChainInfo {
+    pub chain_name: Option<String>,
+    pub rpc_urls: Option<Vec<String>>,
+    pub icon_urls: Option<Vec<String>>,
+    pub native_currency: Option<NativeCurrency>,
+    pub block_explorer_urls: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ProviderStatus {
-    pub provider: provider::Provider,
+    /// The current provider
+    pub provider: Provider,
+    /// The current Chain ID
     pub chain_id: Option<String>,
+    /// The accounts available on this provider with the current `chain_id`
     pub accounts: Option<Vec<String>>,
+
+    requires_chain_info: UseStateHandle<Option<(u64, mpsc::Sender<()>)>>,
+}
+
+impl PartialEq for ProviderStatus {
+    fn eq(&self, other: &Self) -> bool {
+        self.provider == other.provider &&
+            self.chain_id == other.chain_id &&
+            self.accounts == other.accounts &&
+            match (
+                Option::clone(&self.requires_chain_info),
+                Option::clone(&other.requires_chain_info),
+            ) {
+                (None, None) => true,
+                (Some((a, _)), Some((b, _))) => a == b,
+                _ => false,
+            }
+    }
+}
+
+impl ProviderStatus {
+    /// Change the current `chain_id` with smart handling for missing chains, see
+    /// `requires_chain_info`
+    pub async fn change_chain(&self, chain_id: u64) -> Result<(), ProviderError> {
+        match self.provider.request_switch_chain(format!("{:x}", chain_id)).await {
+            Err(ProviderError::UnknownChain(e)) => {
+                let (tx, mut rx) = mpsc::channel(1);
+                self.requires_chain_info.set(Some((chain_id, tx)));
+                rx.recv().await.ok_or(ProviderError::UnknownChain(e))
+            }
+            a => a,
+        }
+    }
+
+    /// If `Some()` is returned it means you should call `provide_chain_info` to unblock the
+    /// `change_chain` call
+    pub fn requires_chain_info(&self) -> Option<u64> {
+        self.requires_chain_info.as_ref().map(|(chain_id, _)| *chain_id)
+    }
+
+    pub async fn provide_chain_info(&self, info: ChainInfo) -> Result<(), ProviderError> {
+        match Option::clone(&self.requires_chain_info) {
+            None => Err(ProviderError::Unsupported("no chain info required".to_string())),
+            Some((chain_id, sender)) => {
+                let chain_id = format!("{:x}", chain_id);
+                self.provider
+                    .request_add_chain(ChainData {
+                        chain_id,
+                        chain_name: info.chain_name,
+                        rpc_urls: info.rpc_urls,
+                        icon_urls: info.icon_urls,
+                        native_currency: info.native_currency,
+                        block_explorer_urls: info.block_explorer_urls,
+                    })
+                    .await?;
+                sender
+                    .send(())
+                    .await
+                    .map_err(|_| ProviderError::Unsupported("send error".to_string()))?;
+                self.requires_chain_info.set(None);
+                Ok(())
+            }
+        }
+    }
 }
 
 #[hook]
@@ -53,6 +131,7 @@ pub fn use_provider() -> Option<Result<ProviderStatus, ProviderError>> {
     let provider = use_state(|| None);
     let error = use_state(|| None);
     let chain_id = use_state(|| None);
+    let requires_chain_info = use_state(|| None);
     let accounts = use_state(|| None);
 
     {
@@ -118,7 +197,7 @@ pub fn use_provider() -> Option<Result<ProviderStatus, ProviderError>> {
 
         #[derive(PartialEq)]
         struct Deps {
-            provider: Option<Rc<provider::Provider>>,
+            provider: Option<Rc<Provider>>,
             chain_id: Option<String>,
         }
         let deps = Deps { provider: Option::clone(&provider), chain_id: Option::clone(&chain_id) };
@@ -157,6 +236,7 @@ pub fn use_provider() -> Option<Result<ProviderStatus, ProviderError>> {
             provider: provider.clone(),
             chain_id: Option::clone(&chain_id),
             accounts: Option::clone(&accounts),
+            requires_chain_info,
         })
     })
 }

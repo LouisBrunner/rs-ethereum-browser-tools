@@ -1,4 +1,4 @@
-use crate::components::label::Label;
+use crate::components::{add_chain_modal::AddChainModal, label::Label};
 use ethereum_provider::{yew::ProviderStatus, ProviderError};
 use yew::prelude::*;
 
@@ -24,12 +24,17 @@ pub(crate) fn wallet_status(props: &WalletStatusProps) -> Html {
             Ok(status) => html! {
               <>
                 <Label name="Wallet" value={ get_wallet_name(&status) } />
-                <Label name="Chain ID" value={status.chain_id.unwrap_or("unknown".to_string())} />
-                <Label name="Accounts" value={status.accounts.map_or("unknown".to_string(), |a| a.join(", "))} />
+                <Label name="Chain ID" value={status.clone().chain_id.unwrap_or("unknown".to_string())} />
+                <Label name="Accounts" value={status.clone().accounts.map_or("unknown".to_string(), |a| a.join(", "))} />
+                if let Some(chain_id) = status.clone().requires_chain_info() {
+                  <AddChainModal chain_id={chain_id} status={status} />
+                }
               </>
             },
             Err(e) => html! { <pre><Label name="Error" value={format!("{}", e)} /></pre> },
         },
-        None => html! { <pre>{ "Loading wallet provider..." }</pre> },
+        None => {
+            html! { <pre>{ "You do not have a browser wallet, please install one to continue" }</pre> }
+        }
     }
 }

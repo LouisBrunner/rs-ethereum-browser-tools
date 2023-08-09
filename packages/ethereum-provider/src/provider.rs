@@ -304,16 +304,16 @@ enum TypedData<T: Serialize> {
     Data(T),
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct Transaction {
     pub from: String,
     pub to: String,
-    pub gas: Option<u128>,
+    pub gas: Option<u64>,
     #[serde(rename = "gasPrice")]
-    pub gas_price: Option<u128>,
-    pub value: Option<u128>,
+    pub gas_price: Option<u64>,
+    pub value: Option<u64>,
     pub data: String,
-    pub nonce: Option<u128>,
+    pub nonce: Option<u64>,
 }
 
 static REQUEST_SWITCH_CHAIN_ID: &str = "wallet_switchEthereumChain";

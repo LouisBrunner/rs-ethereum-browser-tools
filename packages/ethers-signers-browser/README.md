@@ -12,7 +12,7 @@ cargo add ethers-signers-browser
 ```
 
 ```toml
-ethers-signers-browser = "0.1.0"
+ethers-signers-browser = "0.2.0"
 ```
 
 ## Examples

@@ -9,7 +9,7 @@ cargo add ethereum-provider
 ```
 
 ```toml
-ethereum-provider = "0.1.0"
+ethereum-provider = "0.2.0"
 ```
 
 ## Features

@@ -34,7 +34,7 @@ ethers-signers-browser-frontend.workspace = true
 log = "0.4.19"
 mime_guess = { version = "2.0.4", default-features = false }
 rand.workspace = true
-rust-embed = { version = "6.8.1", default-features = false, features = [
+rust-embed = { version = "8.0.0", default-features = false, features = [
   "interpolate-folder-path",
 ] }
 serde.workspace = true

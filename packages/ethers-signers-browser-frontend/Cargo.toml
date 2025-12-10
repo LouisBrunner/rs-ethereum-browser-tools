@@ -25,7 +25,7 @@ ethers.workspace = true
 ethereum-provider = { workspace = true, features = ["yew"] }
 futures-util = "0.3.28"
 futures-channel = "0.3.28"
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "0.3", features = ["js"] }
 gloo-utils = "0.2.0"
 js-sys.workspace = true
 rand.workspace = true
